@@ -1,0 +1,59 @@
+main:
+    irmovq stack, %rsp
+    
+    irmovq array1, %rdi
+    irmovq $24, %rcx
+    rrmovq %rdi, %rsi
+    addq %rcx, %rsi
+    irmovq array2, %rdx
+    call copy
+    halt
+
+# Optimized Copy helper. THIS IS NOT COMPLETLY CORRECT.
+#    %rdi [input]: pointer to the first element to copy.
+#    %rsi [input]: pointer to the last element to copy.
+#    %rdx [input & output]: pointer to where the elements go.
+#
+copy:
+    irmovq $8, %r8        # Preload 8 for pointer increments
+    irmovq $16, %r9       # Preload 16 for unrolling two elements per loop
+
+    rrmovq %rsi, %rax     # Get the last pointer
+    subq   %rdi, %rax     # Compare first and last
+    jl     copyend        # If first > last, exit (default is fwd taken)
+    
+copycontinue:
+    mrmovq (%rdi), %rax   # Load first element
+    mrmovq 8(%rdi), %rbx  # Load second element
+    
+    addq   %r9, %rdi      # Increment source pointers by 16 bytes
+    addq   %r9, %rdx      # Increment destination pointers by 16 bytes
+
+    rmmovq %rax, -16(%rdx) # Store first element
+    rmmovq %rbx, -8(%rdx)  # Store second element
+
+    rrmovq %rsi, %rax     # Check if done
+    subq   %rdi, %rax
+    jge    copycontinue    # If more elements, loop
+    
+copyend:
+    rrmovq %rdx, %rax      # Return the destination pointer
+    ret
+    
+.pos 0x2000
+stack:
+    .quad 0x1
+    
+.pos 0x3000
+array1:
+    .quad 0x123
+    .quad 0x456
+    .quad 0x789
+    .quad 0xabc
+    .quad 0xdef
+array2:
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1

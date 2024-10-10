@@ -1,0 +1,50 @@
+main:
+    irmovq stack, %rsp
+    
+    irmovq array1, %rdi
+    irmovq $24, %rcx
+    rrmovq %rdi, %rsi
+    addq %rcx, %rsi
+    irmovq array2, %rdx
+    call copy
+    halt
+
+# Copy helper.
+#    %rdi [input]: pointer to the first element to copy.
+#    %rsi [input]: pointer to the last element to copy.
+#    %rdx [input & output]: pointer to where the elements go.
+#    
+copy:    
+    rrmovq %rsi, %rax
+    subq   %rdi, %rax
+    jge     copycontinue   # Default is fwd taken, this will mispred a lot
+
+    rrmovq %rdx, %rax
+    ret
+
+copycontinue:
+    mrmovq 0(%rdi), %rax
+    rmmovq %rax, 0(%rdx)
+
+    irmovq $8, %rax
+    addq   %rax, %rdx
+    addq   %rax, %rdi
+    jmp    copy
+    
+.pos 0x2000
+stack:
+    .quad 0x1
+    
+.pos 0x3000
+array1:
+    .quad 0x123
+    .quad 0x456
+    .quad 0x789
+    .quad 0xabc
+    .quad 0xdef
+array2:
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1

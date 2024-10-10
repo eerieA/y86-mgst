@@ -1,0 +1,57 @@
+main:
+    irmovq stack, %rsp
+    
+    irmovq array1, %rdi
+    irmovq $48, %rcx
+    rrmovq %rdi, %rsi
+    addq %rcx, %rsi
+    irmovq array2, %rdx
+    
+    call copy
+    halt
+
+# Optimized Copy helper.
+#    %rdi [input]: pointer to the first element to copy.
+#    %rsi [input]: pointer to the last element to copy.
+#    %rdx [input & output]: pointer to where the elements go.
+#
+copy:
+    irmovq $8, %r8        # Pre-load constant 8 into tmp reg
+    
+    rrmovq %rsi, %rax     # Prepare for cmp first and last pointers
+    subq   %rdi, %rax     # Sets condition codes for the jump
+    jl     copyend        # Taken if first > last (default is fwd taken)
+    
+copycontinue:    
+    mrmovq (%rdi), %rax   # Load value from source before updating pointers
+    
+    addq   %r8, %rdi      # Update pointers while load is happening
+    addq   %r8, %rdx      # Can execute while load is pending
+    
+    # Compare pointers and loop
+    rrmovq %rsi, %rbx     # Setup next iteration comparison
+    rmmovq %rax, -8(%rdx) # Store loaded value to dest (Reduce stall)
+    subq   %rdi, %rbx     # Sets condition codes
+    jge    copycontinue   # Loop if more elements to copy
+    
+copyend:
+    rrmovq %rdx, %rax     # Return final destination pointer
+    ret
+    
+.pos 0x2000
+stack:
+    .quad 0x1
+    
+.pos 0x3000
+array1:
+    .quad 0x123
+    .quad 0x456
+    .quad 0x789
+    .quad 0xabc
+    .quad 0xdef
+array2:
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
