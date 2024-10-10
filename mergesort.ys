@@ -1,4 +1,4 @@
-#
+# V1
 # Calling conventions:
 #     %rdi, %rsi, %rdx, %rcx, %r8, %r9, %r10, %r11 and %rax are caller saved
 #     %rbx, %rbp, %r12, %r13, %r14 are callee saved
@@ -8,7 +8,8 @@
 
 .pos 0x100
 
-main:	irmovq bottom,  %rsp     # initialize stack
+main:
+	irmovq bottom,  %rsp     # initialize stack
 	irmovq array, %rdi       # %rdi = pointer to first element of the array
 	xorq   %rax, %rax        # %rsi = size
 	mrmovq size(%rax), %rsi
@@ -63,13 +64,13 @@ mergesort:
 done:	ret
 
 #
-# Merge
+# Merge (equivalent to `merge(first, mid, last)`)
 #    %rdi: pointer to the first element of the range to merge.
 #    %rsi: pointer to the last element of the range to merge.
 #    %rdx: pointer to the middle element of the range to merge.
 #
-# %rdi is i
-# %rcx is j
+# %rdi is i (starts from initial `first`)
+# %rcx is j (starts from `last`)
 # %rdx is mid
 # %rsi is last
 # %rbp is dest
@@ -80,67 +81,67 @@ merge:
 	pushq  %rdi
 	rrmovq %rdx, %rcx
 	irmovq $8,   %rax
-	addq   %rax, %rcx
+	addq   %rax, %rcx          # second = mid + 1
 	irmovq temp, %rbp
     
 mergeloop1:	
 	rrmovq %rdx, %rax          # while (i <= mid && j <= last)
-	subq   %rdi, %rax
-	jl     mergeloop2
+	subq   %rdi, %rax          # first > mid ?
+	jl     mergeloop2		   # If so, exit to handle leftovers
 	
 	rrmovq %rsi, %rax
-	subq   %rcx, %rax
-	jl     mergeloop2
+	subq   %rcx, %rax          # second > last ?
+	jl     mergeloop2		   # If so, exit to handle leftovers
 
-	mrmovq 0(%rdi), %rax       # %rax = A[i]
-	mrmovq 0(%rcx), %rbx   	   # %ebx = A[j]
-	subq   %rax, %rbx          # if A[i] <= A[j]
+	mrmovq 0(%rdi), %rax       # If outer loop not exit, %rax = A[i]
+	mrmovq 0(%rcx), %rbx   	   # %rbx = A[j]
+	subq   %rax, %rbx          # if A[i] <= A[j] (*first <= *second)
 	jl     mergecopy2
 
-	rmmovq %rax, 0(%rbp)       # copy A[i] to temp
+	rmmovq %rax, 0(%rbp)       # Copy A[i] ("smaller" one) to temp
 	irmovq $8, %rax
 	addq   %rax, %rbp
 	addq   %rax, %rdi
 	jmp    mergeloop1
 
-mergecopy2:
-	mrmovq 0(%rcx), %rbx       # %ebx = A[j] again
+mergecopy2:                    # Copy the second half into temp first
+	mrmovq 0(%rcx), %rbx       # %rbx = A[j] again
 	rmmovq %rbx, 0(%rbp)
 	irmovq $8, %rax
 	addq   %rax, %rbp
 	addq   %rax, %rcx
 	jmp    mergeloop1
 
-mergeloop2:
-	pushq  %rdx
-	pushq  %rsi
-	rrmovq %rdx, %rsi         # Copy A[i] ... A[mid] to temp.
-	rrmovq %rbp, %rdx
+mergeloop2:                   # Merge leftovers and copy back to ori array
+	pushq  %rdx               # Save `mid` to stack
+	pushq  %rsi               # Save `last`
+	rrmovq %rdx, %rsi         ## Copy A[i] ... A[mid] to temp. `mid` has the last ele for copy()
+	rrmovq %rbp, %rdx         # `temp` is dest (And %rdi = `first` has the first ele)
 	call   copy
 	rrmovq %rax, %rbp
 	popq   %rsi
 	popq   %rdx
 
-        pushq  %rdx               # Copy A[j] ... A[last] to temp.
-	pushq  %rsi
-	rrmovq %rcx, %rdi
+    pushq  %rdx               ## Copy A[j] ... A[last] to temp. Save `mid` to stack.
+	pushq  %rsi               # Save `last`. The last ele for copy()
+	rrmovq %rcx, %rdi         # Current `second` equals the first ele for copy()
 	rrmovq %rbp, %rdx
 	call   copy
 	rrmovq %rax, %rbp
-	popq   %rsi
-	popq   %rdx
+	popq   %rsi               # Recover `last`
+	popq   %rdx               # Recover `mid`
 	
-	popq   %rdi
+	popq   %rdi               # Recover initial `first`
 	
-	pushq  %rdi
-	pushq  %rsi	              # Copy temp back to A[first] ... A[last]
-	subq   %rdi, %rsi
+	pushq  %rdi               ## Copy temp back to A[first] ... A[last]. Save initial `first` again
+	pushq  %rsi	              # Save `last`
+	subq   %rdi, %rsi         # %rsi = `last` - initial `first`
 	rrmovq %rdi, %rdx
-	irmovq temp, %rdi
-	addq   %rdi, %rsi
+	irmovq temp, %rdi         # `temp` points to the first ele for copy()
+	addq   %rdi, %rsi         # `temp` + `last` - initial `first` has the last ele for copy()
 	call   copy
-	popq   %rsi
-	popq   %rdi
+	popq   %rsi               # Recover `last`
+	popq   %rdi               # Recover initial `first`
 
 	popq   %rbx
 	popq   %rbp
@@ -181,19 +182,19 @@ copyend:
 #
 .pos 0x1000
 array:
-		.quad	0x41953
-	.quad	0x6d6bc
-	.quad	0xb69e1
-	.quad	0xd8016
-	.quad	0x9b7c0
-	.quad	0xf42be
-	.quad	0x3752d
-	.quad	0x42c87
-	.quad	0xcacd1
-	.quad	0x53978
-	.quad	0x14e88
-	.quad	0x79fa2
-	.quad	0x834b1
+	.quad	0x41953		  # 268627
+	.quad	0x6d6bc		  # 448188
+	.quad	0xb69e1		  # 748001
+	.quad	0xd8016		  # 884758
+	.quad	0x9b7c0		  # 636864
+	.quad	0xf42be		  # 1000126
+	.quad	0x3752d		  # 226605
+	.quad	0x42c87		  # 273543
+	.quad	0xcacd1		  # 830673
+	.quad	0x53978		  # 342392
+	.quad	0x14e88		  # 85640
+	.quad	0x79fa2		  # 499618
+	.quad	0x834b1		  # 537777
 
 #
 # Temporary array.
