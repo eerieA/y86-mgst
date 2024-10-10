@@ -153,28 +153,22 @@ mergeloop2:                   # Merge leftovers and copy back to ori array
 #    %rsi [input]: pointer to the last element to copy.
 #    %rdx [input & output]: pointer to where the elements go.
 #	
-copy:
-    irmovq $8, %r8        # Pre-load constant 8 into tmp reg
-    
-    rrmovq %rsi, %rax     # Prepare for cmp first and last pointers
-    subq   %rdi, %rax     # Sets condition codes for the jump
-    jl     copyend        # Taken if first > last (default is fwd taken)
-    
-copycontinue:    
-    mrmovq (%rdi), %rax   # Load value from source before updating pointers
-    
-    addq   %r8, %rdi      # Update pointers while load is happening
-    addq   %r8, %rdx      # Can execute while load is pending
-    
-    # Compare pointers and loop
-    rrmovq %rsi, %rbx     # Setup next iteration comparison
-    rmmovq %rax, -8(%rdx) # Store loaded value to dest (Reduce stall)
-    subq   %rdi, %rbx     # Sets condition codes
-    jge    copycontinue   # Loop if more elements to copy
-    
-copyend:
-    rrmovq %rdx, %rax     # Return final destination pointer
-    ret
+copy:	
+	rrmovq %rsi, %rax
+	subq   %rdi, %rax
+	jge     copycontinue
+	
+	rrmovq %rdx, %rax
+	ret
+	
+copycontinue:
+	mrmovq 0(%rdi), %rax
+	rmmovq %rax, 0(%rdx)
+
+	irmovq $8, %rax
+	addq   %rax, %rdx
+	addq   %rax, %rdi
+	jmp    copy
 
 
 #
