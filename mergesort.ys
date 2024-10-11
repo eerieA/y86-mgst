@@ -1,4 +1,4 @@
-# V1
+# V2.0
 # Calling conventions:
 #     %rdi, %rsi, %rdx, %rcx, %r8, %r9, %r10, %r11 and %rax are caller saved
 #     %rbx, %rbp, %r12, %r13, %r14 are callee saved
@@ -74,78 +74,103 @@ done:	ret
 # %rdx is mid
 # %rsi is last
 # %rbp is dest
-
 merge:
-	pushq  %rbp
-	pushq  %rbx
-	pushq  %rdi
-	rrmovq %rdx, %rcx
-	irmovq $8,   %rax
-	addq   %rax, %rcx          # second = mid + 1
-	irmovq temp, %rbp
+    pushq  %rbp                    # Save initial dest
+    pushq  %rbx                    # Save initial ???, by calling convention
+    pushq  %rdi                    # Save initial first pointer
     
-mergeloop1:	
-	rrmovq %rdx, %rax          # while (i <= mid && j <= last)
-	subq   %rdi, %rax          # first(%rdi) > mid(%rdx) ?
-	jl     mergeloop2		   # If so, exit to handle leftovers
-	
-	rrmovq %rsi, %rax
-	subq   %rcx, %rax          # second(%rcx) > last(%rsi) ?
-	jl     mergeloop2		   # If so, exit to handle leftovers
+    irmovq $8,   %r8               # Constant 8 for pointer arithmetic
+    irmovq temp, %rbp              # Load temp array address early
+    
+    # Initialize second pointer (j)
+    rrmovq %rdx, %rcx              # mid -> rcx
+    addq   %r8, %rcx               # second = mid + 1
+    
+    # Pre-load values for first comparison
+    mrmovq 0(%rdi), %r9            # Pre-load A[i]
+    mrmovq 0(%rcx), %r10           # Pre-load A[j]
+    
+    # Initial bounds check (optimize common case)
+    rrmovq %rdx, %rax    
+    subq   %rdi, %rax              # mid(%rdx) - first(%rdi)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
+    
+    rrmovq %rsi, %rax
+    subq   %rcx, %rax              # last(%rsi) - second(%rcx)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
 
-	mrmovq 0(%rdi), %rax       # If outer loop not exit, %rax = A[i]
-	mrmovq 0(%rcx), %rbx   	   # %rbx = A[j]
-	subq   %rax, %rbx          # if A[i] <= A[j] (*first <= *second)
-	jl     mergecopy2
+main_merge_loop:                   # Main loop at the top, backward branch
+    # Compare pre-loaded values
+    rrmovq %r9, %rax               
+    rrmovq %r10, %rbx              
+    subq   %rbx, %rax              # A[i] - A[j]? ~ 50-50%
+    jge    store_second            # If A[i] >= A[j], store A[j] (smaller)
+    
+store_first:                       # Store A[i] (smaller)
+    rmmovq %r9, 0(%rbp)            
+    addq   %r8, %rbp
+    addq   %r8, %rdi
+    mrmovq 0(%rdi), %r9            # Pre-load next A[i]
+    mrmovq 0(%rcx), %r10           # Keep the same A[j]
+    
+    # Check i bounds inline
+    rrmovq %rdx, %rax    
+    subq   %rdi, %rax              # mid(%rdx) - first(%rdi)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0
+    jmp    main_merge_loop         # Go on copying first sub array
 
-	rmmovq %rax, 0(%rbp)       # Copy A[i] ("smaller" one) to temp
-	irmovq $8, %rax
-	addq   %rax, %rbp
-	addq   %rax, %rdi
-	jmp    mergeloop1
+store_second:                      # Store A[j] (smaller)
+    rmmovq %r10, 0(%rbp)           
+    addq   %r8, %rbp
+    addq   %r8, %rcx
+    mrmovq 0(%rdi), %r9            # Keep the same A[i]
+    mrmovq 0(%rcx), %r10           # Pre-load next A[j]
+    
+    # Check j bounds inline
+    rrmovq %rsi, %rax
+    subq   %rcx, %rax              # last(%rsi) - second(%rcx)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0
+    jmp    main_merge_loop         # Go on copying second sub array
 
-mergecopy2:                    # Copy the second half into temp first
-	mrmovq 0(%rcx), %rbx       # %rbx = A[j] again
-	rmmovq %rbx, 0(%rbp)
-	irmovq $8, %rax
-	addq   %rax, %rbp
-	addq   %rax, %rcx
-	jmp    mergeloop1
+prepare_mergeloop2:
+    # Save registers before handling leftovers
+    pushq  %rdx                    # Save mid
+    pushq  %rsi                    # Save last
 
-mergeloop2:                   # Merge leftovers and copy back to ori array
-	pushq  %rdx               # Save `mid` to stack
-	pushq  %rsi               # Save `last`
-	rrmovq %rdx, %rsi         ## Copy A[i] ... A[mid] to temp. `mid` has the last ele for copy()
-	rrmovq %rbp, %rdx         # `temp` is dest (And %rdi = `first` has the first ele)
-	call   copy
-	rrmovq %rax, %rbp
-	popq   %rsi
-	popq   %rdx
+    # Handle leftovers from first half
+    rrmovq %rdx, %rsi              # Setup args for copy: mid -> last pointer
+    rrmovq %rbp, %rdx              # temp -> dest pointer
+    call   copy
+    rrmovq %rax, %rbp              # Save new temp pointer
 
-    pushq  %rdx               ## Copy A[j] ... A[last] to temp. Save `mid` to stack.
-	pushq  %rsi               # Save `last`. The last ele for copy()
-	rrmovq %rcx, %rdi         # Current `second` equals the first ele for copy()
-	rrmovq %rbp, %rdx
-	call   copy
-	rrmovq %rax, %rbp
-	popq   %rsi               # Recover `last`
-	popq   %rdx               # Recover `mid`
-	
-	popq   %rdi               # Recover initial `first`
-	
-	pushq  %rdi               ## Copy temp back to A[first] ... A[last]. Save initial `first` again
-	pushq  %rsi	              # Save `last`
-	subq   %rdi, %rsi         # %rsi = `last` - initial `first`
-	rrmovq %rdi, %rdx
-	irmovq temp, %rdi         # `temp` points to the first ele for copy()
-	addq   %rdi, %rsi         # `temp` + `last` - initial `first` has the last ele for copy()
-	call   copy
-	popq   %rsi               # Recover `last`
-	popq   %rdi               # Recover initial `first`
-
-	popq   %rbx
-	popq   %rbp
-	ret
+    # Handle leftovers from second half
+    rrmovq %rcx, %rdi              # second -> first pointer
+    popq   %rsi                    # Restore last pointer
+    pushq  %rsi                    # Save it again for later
+    call   copy
+    rrmovq %rax, %rbp              # Save final temp pointer
+    
+    # Copy everything back to original array
+    popq   %rsi                    # Restore last pointer
+    popq   %rdx                    # Restore mid pointer
+    popq   %rdi                    # Restore initial first pointer
+    
+    # Setup final copy
+    pushq  %rdi                    # Save initial `first` again
+    pushq  %rsi                    # Save `last`
+    subq   %rdi, %rsi              # %rsi = `last` - initial `first`
+    rrmovq %rdi, %rdx              # Original array as destination
+    irmovq temp, %rdi              # `temp` points to the first ele for copy()
+    addq   %rdi, %rsi              # `temp` + `last` - initial `first` has the last ele for copy()
+    
+    call   copy
+    
+    # Cleanup and return
+    popq   %rsi                    # Restore `last`
+    popq   %rdi                    # Restore initial `first`
+    popq   %rbx                    # Restore initial ???, by calling convention
+    popq   %rbp                    # Restore initial `dest`
+    ret
 
 #
 # Copy helper.
