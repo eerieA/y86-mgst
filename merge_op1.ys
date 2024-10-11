@@ -1,0 +1,98 @@
+merge:
+    pushq  %rbp
+    pushq  %rbx
+    pushq  %rdi                    # Save initial first pointer
+    
+    # Pre-load frequently used constants and addresses
+    irmovq $8,   %r8               # Constant 8 for pointer arithmetic
+    irmovq temp, %rbp              # Load temp array address early
+    
+    # Initialize second pointer (j)
+    rrmovq %rdx, %rcx              # mid -> rcx
+    addq   %r8, %rcx               # second = mid + 1
+    
+    # Pre-load values for first comparison
+    mrmovq 0(%rdi), %r9            # Pre-load A[i]
+    mrmovq 0(%rcx), %r10           # Pre-load A[j]
+    
+    # Jump to main loop entry point
+    jmp    mergeloop1_check
+
+mergeloop1:
+    # Compare pre-loaded values
+    rrmovq %r9, %rax               # Move pre-loaded A[i] to %rax
+    rrmovq %r10, %rbx              # Move pre-loaded A[j] to %rbx
+    subq   %rax, %rbx              # Compare A[i] and A[j]
+    jl     mergecopy2              # Forward branch still OK here as it's ~50/50
+
+mergecopy1:
+    rmmovq %r9, 0(%rbp)            # Store A[i] to temp
+    addq   %r8, %rbp
+    addq   %r8, %rdi
+    
+    # Pre-load next values for next iteration
+    mrmovq 0(%rdi), %r9            # Pre-load next A[i]
+    mrmovq 0(%rcx), %r10           # Pre-load next A[j]
+    
+mergeloop1_check:                  # Loop condition check at bottom
+    # Check i <= mid
+    rrmovq %rdx, %rax    
+    subq   %rdi, %rax              # mid(%rdx) - first(%rdi) ?
+    jl     prepare_mergeloop2
+    
+    # Check j <= last
+    rrmovq %rsi, %rax
+    subq   %rcx, %rax              # last(%rsi) - second(%rcx) ?
+    jge    mergeloop1              # Backward branch, predicted taken
+    jmp    prepare_mergeloop2
+
+mergecopy2:
+    rmmovq %r10, 0(%rbp)           # Store A[j] to temp
+    addq   %r8, %rbp
+    addq   %r8, %rcx
+    
+    # Pre-load next values for next iteration
+    mrmovq 0(%rdi), %r9            # Pre-load next A[i]
+    mrmovq 0(%rcx), %r10           # Pre-load next A[j]
+    jmp    mergeloop1_check
+    
+prepare_mergeloop2:
+    # Save registers before handling leftovers
+    pushq  %rdx                    # Save mid
+    pushq  %rsi                    # Save last
+
+mergeloop2:
+    # Handle leftovers from first half
+    rrmovq %rdx, %rsi              # Setup args for copy: mid -> last pointer
+    rrmovq %rbp, %rdx              # temp -> dest pointer
+    call   copy
+    rrmovq %rax, %rbp              # Save new temp pointer
+    
+    # Handle leftovers from second half
+    rrmovq %rcx, %rdi              # second -> first pointer
+    popq   %rsi                    # Restore last pointer
+    pushq  %rsi                    # Save it again for later
+    call   copy
+    rrmovq %rax, %rbp              # Save final temp pointer
+    
+    # Copy everything back to original array
+    popq   %rsi                    # Restore last pointer
+    popq   %rdx                    # Restore mid pointer
+    popq   %rdi                    # Restore initial first pointer
+    
+    # Setup final copy
+    pushq  %rdi
+    pushq  %rsi
+    subq   %rdi, %rsi              # Calculate range
+    rrmovq %rdi, %rdx              # Original array as destination
+    irmovq temp, %rdi              # Source is temp array
+    addq   %rdi, %rsi              # Adjust last pointer
+    
+    call   copy
+    
+    # Cleanup and return
+    popq   %rsi
+    popq   %rdi
+    popq   %rbx
+    popq   %rbp
+    ret
