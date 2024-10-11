@@ -19,7 +19,7 @@ copy:
     
     rrmovq %rsi, %rax     # Compare first and last pointers
     subq   %rdi, %rax     # Sets condition codes for the jump
-    jl     copyend        # Taken if first > last (default is fwd taken)
+    jl     copyend        # Taken if first > last (default is fwd not taken)
     
 copycontinue:    
     mrmovq (%rdi), %rax   # Load value from source before updating pointers

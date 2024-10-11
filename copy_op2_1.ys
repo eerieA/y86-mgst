@@ -20,7 +20,7 @@ copy:
 
     rrmovq %rsi, %rax     # Get the last pointer
     subq   %rdi, %rax     # Compare first and last
-    jl     copyend        # If first > last, exit (default is fwd taken)
+    jl     copyend        # If first > last, exit (default is fwd not taken)
     
 copycontinue:
     rrmovq %rdx, %rcx     # tmp dest pointer

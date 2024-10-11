@@ -17,7 +17,7 @@ main:
 copy:    
     rrmovq %rsi, %rax
     subq   %rdi, %rax
-    jge     copycontinue   # Default is fwd taken, this will mispred a lot
+    jge     copycontinue   # default is fwd not taken, this will mispred a lot
 
     rrmovq %rdx, %rax
     ret

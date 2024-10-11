@@ -86,11 +86,11 @@ merge:
     
 mergeloop1:	
 	rrmovq %rdx, %rax          # while (i <= mid && j <= last)
-	subq   %rdi, %rax          # first > mid ?
+	subq   %rdi, %rax          # first(%rdi) > mid(%rdx) ?
 	jl     mergeloop2		   # If so, exit to handle leftovers
 	
 	rrmovq %rsi, %rax
-	subq   %rcx, %rax          # second > last ?
+	subq   %rcx, %rax          # second(%rcx) > last(%rsi) ?
 	jl     mergeloop2		   # If so, exit to handle leftovers
 
 	mrmovq 0(%rdi), %rax       # If outer loop not exit, %rax = A[i]
@@ -158,9 +158,9 @@ copy:
     
     rrmovq %rsi, %rax     # Prepare for cmp first and last pointers
     subq   %rdi, %rax     # Sets condition codes for the jump
-    jl     copyend        # Taken if first > last (default is fwd taken)
+    jl     copyend        # Taken if first > last (default is fwd not taken)
     
-copycontinue:    
+copycontinue:
     mrmovq (%rdi), %rax   # Load value from source before updating pointers
     
     addq   %r8, %rdi      # Update pointers while load is happening
@@ -170,7 +170,7 @@ copycontinue:
     rrmovq %rsi, %rbx     # Setup next iteration comparison
     rmmovq %rax, -8(%rdx) # Store loaded value to dest (Reduce stall)
     subq   %rdi, %rbx     # Sets condition codes
-    jge    copycontinue   # Loop if more elements to copy
+    jge    copycontinue   # Loop if more elements to copy (Bwd taken)
     
 copyend:
     rrmovq %rdx, %rax     # Return final destination pointer

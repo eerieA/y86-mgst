@@ -86,11 +86,11 @@ merge:
     
 mergeloop1:	
 	rrmovq %rdx, %rax          # while (i <= mid && j <= last)
-	subq   %rdi, %rax          # first > mid ?
+	subq   %rdi, %rax          # first(%rdi) > mid(%rdx) ?
 	jl     mergeloop2		   # If so, exit to handle leftovers
 	
 	rrmovq %rsi, %rax
-	subq   %rcx, %rax          # second > last ?
+	subq   %rcx, %rax          # second(%rcx) > last(%rsi) ?
 	jl     mergeloop2		   # If so, exit to handle leftovers
 
 	mrmovq 0(%rdi), %rax       # If outer loop not exit, %rax = A[i]
