@@ -1,6 +1,6 @@
-merge:                             # V1.01
-    pushq  %rbp
-    pushq  %rbx
+merge:                             # V1.02
+    pushq  %rbp                    # Save initial dest
+    pushq  %rbx                    # Save initial ???, by calling convention
     pushq  %rdi                    # Save initial first pointer
     
     irmovq $8,   %r8               # Constant 8 for pointer arithmetic
@@ -35,26 +35,24 @@ store_first:                       # Store A[i] (smaller)
     addq   %r8, %rbp
     addq   %r8, %rdi
     mrmovq 0(%rdi), %r9            # Pre-load next A[i]
-    mrmovq 0(%rcx), %r10           # Keep the same A[j]
     
     # Check i bounds inline
     rrmovq %rdx, %rax    
     subq   %rdi, %rax              # mid(%rdx) - first(%rdi)? Mostly >= 0
-    jl     prepare_mergeloop2      # Rarely < 0
-    jmp    main_merge_loop         # Go on copying first sub array
+    jge    main_merge_loop         # Mostly >= 0, backward taken
+    jmp    prepare_mergeloop2      # Rarely < 0, fall through
 
 store_second:                      # Store A[j] (smaller)
     rmmovq %r10, 0(%rbp)           
     addq   %r8, %rbp
     addq   %r8, %rcx
-    mrmovq 0(%rdi), %r9            # Keep the same A[i]
     mrmovq 0(%rcx), %r10           # Pre-load next A[j]
     
     # Check j bounds inline
     rrmovq %rsi, %rax
     subq   %rcx, %rax              # last(%rsi) - second(%rcx)? Mostly >= 0
-    jl     prepare_mergeloop2      # Rarely < 0
-    jmp    main_merge_loop         # Go on copying second sub array
+    jge    main_merge_loop         # Mostly >= 0, backward taken
+    jmp    prepare_mergeloop2      # Rarely < 0, fall through
 
 prepare_mergeloop2:
     # Save registers before handling leftovers
@@ -80,18 +78,18 @@ prepare_mergeloop2:
     popq   %rdi                    # Restore initial first pointer
     
     # Setup final copy
-    pushq  %rdi
-    pushq  %rsi
-    subq   %rdi, %rsi              # Calculate range
+    pushq  %rdi                    # Save initial `first` again
+    pushq  %rsi                    # Save `last`
+    subq   %rdi, %rsi              # %rsi = `last` - initial `first`
     rrmovq %rdi, %rdx              # Original array as destination
-    irmovq temp, %rdi              # Source is temp array
-    addq   %rdi, %rsi              # Adjust last pointer
+    irmovq temp, %rdi              # `temp` points to the first ele for copy()
+    addq   %rdi, %rsi              # `temp` + `last` - initial `first` has the last ele for copy()
     
     call   copy
     
     # Cleanup and return
-    popq   %rsi
-    popq   %rdi
-    popq   %rbx
-    popq   %rbp
+    popq   %rsi                    # Restore `last`
+    popq   %rdi                    # Restore initial `first`
+    popq   %rbx                    # Restore initial ???, by calling convention
+    popq   %rbp                    # Restore initial `dest`
     ret
