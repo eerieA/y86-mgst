@@ -1,4 +1,4 @@
-merge:
+merge:                             # V1.01
     pushq  %rbp
     pushq  %rbx
     pushq  %rdi                    # Save initial first pointer
