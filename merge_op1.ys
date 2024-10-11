@@ -3,7 +3,6 @@ merge:
     pushq  %rbx
     pushq  %rdi                    # Save initial first pointer
     
-    # Pre-load frequently used constants and addresses
     irmovq $8,   %r8               # Constant 8 for pointer arithmetic
     irmovq temp, %rbp              # Load temp array address early
     
@@ -15,59 +14,59 @@ merge:
     mrmovq 0(%rdi), %r9            # Pre-load A[i]
     mrmovq 0(%rcx), %r10           # Pre-load A[j]
     
-    # Jump to main loop entry point
-    jmp    mergeloop1_check
+    # Initial bounds check (optimize common case)
+    rrmovq %rdx, %rax    
+    subq   %rdi, %rax              # mid(%rdx) - first(%rdi)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
+    
+    rrmovq %rsi, %rax
+    subq   %rcx, %rax              # last(%rsi) - second(%rcx)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
 
-mergeloop1:
+main_merge_loop:                   # Main loop at the top, backward branch
     # Compare pre-loaded values
-    rrmovq %r9, %rax               # Move pre-loaded A[i] to %rax
-    rrmovq %r10, %rbx              # Move pre-loaded A[j] to %rbx
-    subq   %rax, %rbx              # Compare A[i] and A[j]
-    jl     mergecopy2              # Forward branch still OK here as it's ~50/50
-
-mergecopy1:
-    rmmovq %r9, 0(%rbp)            # Store A[i] to temp
+    rrmovq %r9, %rax               
+    rrmovq %r10, %rbx              
+    subq   %rbx, %rax              # A[i] - A[j]? ~ 50-50%
+    jge    store_second            # If A[i] >= A[j], store A[j] (smaller)
+    
+store_first:                       # Store A[i] (smaller)
+    rmmovq %r9, 0(%rbp)            
     addq   %r8, %rbp
     addq   %r8, %rdi
-    
-    # Pre-load next values for next iteration
     mrmovq 0(%rdi), %r9            # Pre-load next A[i]
-    mrmovq 0(%rcx), %r10           # Pre-load next A[j]
+    mrmovq 0(%rcx), %r10           # Keep the same A[j]
     
-mergeloop1_check:                  # Loop condition check at bottom
-    # Check i <= mid
+    # Check i bounds inline
     rrmovq %rdx, %rax    
-    subq   %rdi, %rax              # mid(%rdx) - first(%rdi) ?
-    jl     prepare_mergeloop2
-    
-    # Check j <= last
-    rrmovq %rsi, %rax
-    subq   %rcx, %rax              # last(%rsi) - second(%rcx) ?
-    jge    mergeloop1              # Backward branch, predicted taken
-    jmp    prepare_mergeloop2
+    subq   %rdi, %rax              # mid(%rdx) - first(%rdi)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0
+    jmp    main_merge_loop         # Go on copying first sub array
 
-mergecopy2:
-    rmmovq %r10, 0(%rbp)           # Store A[j] to temp
+store_second:                      # Store A[j] (smaller)
+    rmmovq %r10, 0(%rbp)           
     addq   %r8, %rbp
     addq   %r8, %rcx
-    
-    # Pre-load next values for next iteration
-    mrmovq 0(%rdi), %r9            # Pre-load next A[i]
+    mrmovq 0(%rdi), %r9            # Keep the same A[i]
     mrmovq 0(%rcx), %r10           # Pre-load next A[j]
-    jmp    mergeloop1_check
     
+    # Check j bounds inline
+    rrmovq %rsi, %rax
+    subq   %rcx, %rax              # last(%rsi) - second(%rcx)? Mostly >= 0
+    jl     prepare_mergeloop2      # Rarely < 0
+    jmp    main_merge_loop         # Go on copying second sub array
+
 prepare_mergeloop2:
     # Save registers before handling leftovers
     pushq  %rdx                    # Save mid
     pushq  %rsi                    # Save last
 
-mergeloop2:
     # Handle leftovers from first half
     rrmovq %rdx, %rsi              # Setup args for copy: mid -> last pointer
     rrmovq %rbp, %rdx              # temp -> dest pointer
     call   copy
     rrmovq %rax, %rbp              # Save new temp pointer
-    
+
     # Handle leftovers from second half
     rrmovq %rcx, %rdi              # second -> first pointer
     popq   %rsi                    # Restore last pointer
