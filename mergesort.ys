@@ -1,4 +1,4 @@
-# V2.0
+# V2.01
 # Calling conventions:
 #     %rdi, %rsi, %rdx, %rcx, %r8, %r9, %r10, %r11 and %rax are caller saved
 #     %rbx, %rbp, %r12, %r13, %r14 are callee saved
@@ -74,7 +74,7 @@ done:	ret
 # %rdx is mid
 # %rsi is last
 # %rbp is dest
-merge:                             # V2.00
+merge:                             # V2.01
     pushq  %rbp                    # Save initial dest
     pushq  %rbx                    # Save initial ???, by calling convention
     pushq  %r12                    # Callee-saved - will hold last
@@ -82,14 +82,14 @@ merge:                             # V2.00
     pushq  %rdi                    # Save initial first pointer
     
     irmovq $8,   %r8               # Constant 8 for pointer arithmetic
-    irmovq temp, %rbp              # Load temp array address early
     
     # Initialize second pointer (j)
     rrmovq %rdx, %rcx              # mid -> rcx
+    irmovq temp, %rbp              # Load temp array address early
     addq   %r8, %rcx               # second = mid + 1
     
     # Store bounds in callee-saved registers
-    rrmovq %rdx, %r13              # Store mid in r13 (was r11)
+    rrmovq %rdx, %r13              # Store mid in r13
     rrmovq %rsi, %r12              # Store last in r12
     
     # Pre-load values for first comparison
@@ -113,11 +113,11 @@ main_merge_loop:
     
 store_first:                       # Store A[i] (smaller)
     rmmovq %r9, 0(%rbp)            
-    addq   %r8, %rbp
     addq   %r8, %rdi
     
     # Quick bounds check using dedicated register
-    rrmovq %r13, %rax    
+    rrmovq %r13, %rax
+    addq   %r8, %rbp               # Inc dest
     subq   %rdi, %rax              # mid(%r13) - first(%rdi)? Mostly >= 0
     jge    load_first_continue     # Mostly >= 0, backward taken
     jmp    prepare_mergeloop2      # Rarely < 0, fall through
@@ -128,11 +128,11 @@ load_first_continue:
 
 store_second:                      # Store A[j] (smaller)
     rmmovq %r10, 0(%rbp)           
-    addq   %r8, %rbp
     addq   %r8, %rcx
     
     # Quick bounds check using dedicated register
     rrmovq %r12, %rax
+    addq   %r8, %rbp               # Inc dest
     subq   %rcx, %rax              # last(%r12) - second(%rcx)? Mostly >= 0
     jge    load_second_continue    # Mostly >= 0, backward taken
     jmp    prepare_mergeloop2      # Rarely < 0, fall through
