@@ -1,0 +1,88 @@
+mergesort:               # Iterative V1.00
+    pushq %rbx           # Callee-saved register
+    pushq %rbp           # Callee-saved register
+    pushq %r12           # Callee-saved register
+    pushq %r13           # Callee-saved register
+    pushq %r14           # Callee-saved register
+
+    # Calculate total_elements = (end - start + 1)
+    rrmovq %rsi, %rax    # %rax = end
+    subq %rdi, %rax      # %rax = end - start
+    irmovq $8, %r10      # Constant 8
+    addq %r10, %rax      # %rax = end - start + 8, %rax now holds total_elements*8
+
+    # Initialize size = 8 (use bytes to reduce multiplications)
+    irmovq $8, %r12      # %r12 is current 'size' in bytes
+
+outer_loop:
+    # while (size < total_elements)
+    rrmovq %rax, %r10
+    subq %r12, %r10
+    jle outer_loop_end
+
+    # left = start
+    rrmovq %rdi, %r13    # %r13 is current 'left' pointer
+
+inner_loop:
+    # while (left <= end)
+    rrmovq %rsi, %r10
+    subq %r13, %r10
+    jl inner_loop_end
+
+    # Calculate mid = left + size - 1 (left + size - 8)
+    rrmovq %r13, %rdx    # %rdx = 'left'
+    addq %r12, %rdx      # %rdx = 'left' + size*8
+    irmovq $8, %r10
+    subq %r10, %rdx      # %rdx = 'left' + (size-1)*8, current 'mid' pointer
+
+    # Calculate right = left + 2 * size - 1
+    rrmovq %r13, %rcx    # %rcx = 'left'
+    rrmovq %r12, %r10    # %r10 = size*8
+    addq %r10, %r10      # %r10 = 2*(size*8)
+    addq %r10, %rcx      # %rcx = 'left' + 2*(size*8)
+    irmovq $8, %r10
+    subq %r10, %rcx      # %rcx = 'left' + 2*(size*8) - 8
+
+    # if (right > end) right = end
+    rrmovq %rsi, %r10
+    subq %rcx, %r10
+    jge skip_right_adjust
+    rrmovq %rsi, %rcx
+
+skip_right_adjust:
+    # Prepare arguments for merge call
+    pushq %rcx                   # Save current 'right'
+    pushq %rax
+    pushq %rsi                   # Save initial 'end'
+    pushq %rdi                   # Save initial 'left'
+
+    rrmovq %r13, %rdi            # current 'left' -> %rdi
+    rrmovq %rcx, %rsi            # current 'right' -> %rsi
+    rrmovq %rdx, %rdx            # mid already in %rdx
+    
+    call merge
+    popq %rdi
+    popq %rsi
+    popq %rax
+    popq %rcx
+
+    # left += 2 * size
+    rrmovq %r12, %r10    # %r10 = size*8
+    addq %r10, %r10      # %r10 = (size*8) * 2
+    addq %r10, %r13      # 'left' = current 'left' + (size*8) * 2
+
+    jmp inner_loop
+
+inner_loop_end:
+    # size *= 2
+    addq %r12, %r12
+
+    jmp outer_loop
+
+outer_loop_end:
+    popq %r14            # Restore callee-saved registers
+    popq %r13
+    popq %r12
+    popq %rbp
+    popq %rbx
+    ret
