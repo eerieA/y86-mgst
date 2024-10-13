@@ -1,0 +1,45 @@
+mergesort:                  # Recursive V2.00
+    # Check if the range has more than one element
+    rrmovq %rsi, %rax
+    subq   %rdi, %rax
+    jle    done             # If not, we're done
+
+    # Calculate mid point
+    rrmovq %rdi, %rdx
+    addq   %rsi, %rdx
+    irmovq $2,   %rax
+    divq   %rax, %rdx
+    irmovq $-8,  %rax
+    andq   %rax, %rdx
+
+    # Save registers
+    pushq  %rdi
+    pushq  %rsi
+    pushq  %rdx
+
+    # Sort left half: mergesort(first, mid)
+    rrmovq %rdx, %rsi
+    call   mergesort
+
+    # Restore and save registers
+    popq   %rdx
+    popq   %rsi
+    pushq  %rsi
+    pushq  %rdx
+
+    # Sort right half: mergesort(mid+1, last)
+    rrmovq %rdx, %rdi
+    irmovq $8, %rax
+    addq   %rax, %rdi
+    call   mergesort
+
+    # Restore registers
+    popq   %rdx
+    popq   %rsi
+    popq   %rdi
+
+    # Merge the sorted halves
+    jmp    merge    # Tail call optimization
+
+done:
+    ret
