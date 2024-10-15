@@ -1,4 +1,4 @@
-# V2.01
+# V2.02
 # Calling conventions:
 #     %rdi, %rsi, %rdx, %rcx, %r8, %r9, %r10, %r11 and %rax are caller saved
 #     %rbx, %rbp, %r12, %r13, %r14 are callee saved
@@ -27,41 +27,52 @@ main:
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
 #
-mergesort:
-	rrmovq %rsi, %rax  	    # is first < last ?
-	subq   %rdi, %rax
-	jle    done             # if not, done.
+mergesort:                  # Recursive V2.00
+    # Check if the range has more than one element
+    rrmovq %rsi, %rax
+    subq   %rdi, %rax
+    jle    done             # If not, we're done
 
-	rrmovq %rdi, %rdx       # %rdx = mid. Note the use  of ANDQ.
-	addq   %rsi, %rdx       # Since we're doing arithmetic  with
-	irmovq $2,   %rax       # pointers, we can not rely only  on
-	divq   %rax, %rdx       # integer division to ensure  we get
-	irmovq $-8,  %rax       # a valid pointer.
-	andq   %rax, %rdx       
+    # Calculate mid point
+    rrmovq %rdi, %rdx
+    addq   %rsi, %rdx
+    irmovq $2,   %rax
+    divq   %rax, %rdx
+    irmovq $-8,  %rax
+    andq   %rax, %rdx
 
-	pushq  %rdi
-	pushq  %rsi             
-	pushq  %rdx             
-	rrmovq %rdx, %rsi       # mergesort(first, mid)
-	call   mergesort
-	popq   %rdx
-	popq   %rsi
-	popq   %rdi
-    
-	pushq  %rdi             # mergesort(mid+1, last)
-	pushq  %rsi             
-	pushq  %rdx 
-	rrmovq %rdx, %rdi
-	irmovq $8, %rax
-	addq   %rax, %rdi
-	call   mergesort
-	popq   %rdx
-	popq   %rsi
-	popq   %rdi
+    # Save registers
+    pushq  %rdi
+    pushq  %rsi
+    pushq  %rdx
 
-	call   merge            # merge(first, mid, last)
+    # Sort left half: mergesort(first, mid)
+    rrmovq %rdx, %rsi
+    call   mergesort
 
-done:	ret
+    # Restore and save registers
+    popq   %rdx
+    popq   %rsi
+    pushq  %rsi
+    pushq  %rdx
+
+    # Sort right half: mergesort(mid+1, last)
+    rrmovq %rdx, %rdi
+    irmovq $8, %rax
+    addq   %rax, %rdi
+    call   mergesort
+
+    # Restore registers
+    popq   %rdx
+    popq   %rsi
+    popq   %rdi
+
+    # Merge the sorted halves
+    jmp    merge    # Tail call optimization
+    merge_end:
+
+done:
+    ret
 
 #
 # Merge (equivalent to `merge(first, mid, last)`)
@@ -74,12 +85,11 @@ done:	ret
 # %rdx is mid
 # %rsi is last
 # %rbp is dest
-merge:                             # V2.01
+merge:                             # V2.02
     pushq  %rbp                    # Save initial dest
     pushq  %rbx                    # Save initial ???, by calling convention
     pushq  %r12                    # Callee-saved - will hold last
     pushq  %r13                    # Callee-saved - will hold mid
-    pushq  %rdi                    # Save initial first pointer
     
     irmovq $8,   %r8               # Constant 8 for pointer arithmetic
     
@@ -105,6 +115,8 @@ merge:                             # V2.01
     subq   %rcx, %rax              # last(%r12) - second(%rcx)? Mostly >= 0
     jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
 
+    pushq  %rdi                    # Save initial first pointer
+    
 main_merge_loop:
     # Compare pre-loaded values
     rrmovq %r9, %rax               
@@ -173,7 +185,8 @@ prepare_mergeloop2:
     popq   %r12                    # Restore callee-saved
     popq   %rbx                    # Restore callee-saved
     popq   %rbp                    # Restore callee-saved
-    ret
+    #ret
+    jmp merge_end
 
 #
 # Copy helper. Optimized to scratch and use caller-saved reg r11

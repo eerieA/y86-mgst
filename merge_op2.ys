@@ -1,9 +1,8 @@
-merge:                             # V2.01
+merge:                             # V2.02
     pushq  %rbp                    # Save initial dest
     pushq  %rbx                    # Save initial ???, by calling convention
     pushq  %r12                    # Callee-saved - will hold last
     pushq  %r13                    # Callee-saved - will hold mid
-    pushq  %rdi                    # Save initial first pointer
     
     irmovq $8,   %r8               # Constant 8 for pointer arithmetic
     
@@ -29,6 +28,8 @@ merge:                             # V2.01
     subq   %rcx, %rax              # last(%r12) - second(%rcx)? Mostly >= 0
     jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
 
+    pushq  %rdi                    # Save initial first pointer, bcz calling copy()
+    
 main_merge_loop:
     # Compare pre-loaded values
     rrmovq %r9, %rax               
@@ -97,7 +98,7 @@ prepare_mergeloop2:
     popq   %r12                    # Restore callee-saved
     popq   %rbx                    # Restore callee-saved
     popq   %rbp                    # Restore callee-saved
-    ret
+    jmp merge_end
 
 #
 # Copy helper. Optimized to scratch and use caller-saved reg r11

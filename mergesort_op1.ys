@@ -1,4 +1,4 @@
-mergesort:               # Iterative V1.00
+mergesort:               # Iterative V1.01
     pushq %rbx           # Callee-saved register
     pushq %rbp           # Callee-saved register
     pushq %r12           # Callee-saved register
@@ -8,8 +8,8 @@ mergesort:               # Iterative V1.00
     # Calculate total_elements = (end - start + 1)
     rrmovq %rsi, %rax    # %rax = end
     subq %rdi, %rax      # %rax = end - start
-    irmovq $8, %r10      # Constant 8
-    addq %r10, %rax      # %rax = end - start + 8, %rax now holds total_elements*8
+    irmovq $8, %rbp      # Constant 8
+    addq %rbp, %rax      # %rax = end - start + 8, %rax now holds total_elements*8
 
     # Initialize size = 8 (use bytes to reduce multiplications)
     irmovq $8, %r12      # %r12 is current 'size' in bytes
@@ -17,7 +17,7 @@ mergesort:               # Iterative V1.00
 outer_loop:
     # while (size < total_elements)
     rrmovq %rax, %r10
-    subq %r12, %r10
+    subq %r12, %r10      # total_elements - 'size'? Mostly >0
     jle outer_loop_end
 
     # left = start
@@ -26,30 +26,27 @@ outer_loop:
 inner_loop:
     # while (left <= end)
     rrmovq %rsi, %r10
-    subq %r13, %r10
+    subq %r13, %r10      # 'end' - 'left'? Mostly >0
     jl inner_loop_end
 
     # Calculate mid = left + size - 1 (left + size - 8)
     rrmovq %r13, %rdx    # %rdx = 'left'
     addq %r12, %rdx      # %rdx = 'left' + size*8
-    irmovq $8, %r10
-    subq %r10, %rdx      # %rdx = 'left' + (size-1)*8, current 'mid' pointer
+    subq %rbp, %rdx      # %rdx = 'left' + (size-1)*8, current 'mid' pointer
 
     # Calculate right = left + 2 * size - 1
     rrmovq %r13, %rcx    # %rcx = 'left'
     rrmovq %r12, %r10    # %r10 = size*8
     addq %r10, %r10      # %r10 = 2*(size*8)
     addq %r10, %rcx      # %rcx = 'left' + 2*(size*8)
-    irmovq $8, %r10
-    subq %r10, %rcx      # %rcx = 'left' + 2*(size*8) - 8
+    subq %rbp, %rcx      # %rcx = 'left' + 2*(size*8) - 8
 
     # if (right > end) right = end
     rrmovq %rsi, %r10
     subq %rcx, %r10
-    jge skip_right_adjust
-    rrmovq %rsi, %rcx
+    cmovl %rsi, %rcx
 
-skip_right_adjust:
+merge_segments:
     # Prepare arguments for merge call
     pushq %rcx                   # Save current 'right'
     pushq %rax
@@ -58,9 +55,9 @@ skip_right_adjust:
 
     rrmovq %r13, %rdi            # current 'left' -> %rdi
     rrmovq %rcx, %rsi            # current 'right' -> %rsi
-    rrmovq %rdx, %rdx            # mid already in %rdx
     
-    call merge
+    jmp merge
+merge_return:
     popq %rdi
     popq %rsi
     popq %rax
