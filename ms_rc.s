@@ -1,94 +1,66 @@
-copy:
-        mov     rax, rdi
-        mov     rcx, rsi
-        cmp     rsi, rdi
-        jb      .L4
-        mov     rdi, rdx
-        mov     rsi, rax
-.L3:
-        movsd
-        cmp     rcx, rsi
-        jnb     .L3
-        sub     rcx, rax
-        and     rcx, -4
-        lea     rax, [rdx+4+rcx]
-        ret
-.L4:
-        mov     rax, rdx
-        ret
 merge:
-        mov     r11, rdx
         mov     r10, rdi
         mov     r9, rsi
+        lea     rax, [rsi+4]
         mov     r8, rdi
-        lea     rdx, [rsi+4]
-        mov     eax, OFFSET FLAT:temp
+        mov     ecx, OFFSET FLAT:temp
         cmp     rsi, rdi
-        jnb     .L35
-        jmp     .L8
-.L36:
-        mov     ecx, esi
+        jnb     .L30
+        jmp     .L2
+.L32:
         add     r8, 4
-        mov     DWORD PTR [rax-4], ecx
+        mov     edi, esi
+.L4:
+        mov     DWORD PTR [rcx-4], edi
         cmp     r9, r8
-        jb      .L13
-.L35:
-        cmp     r11, rdx
-        jb      .L8
+        jb      .L29
+.L30:
+        cmp     rdx, rax
+        jb      .L2
         mov     esi, DWORD PTR [r8]
-        mov     ecx, DWORD PTR [rdx]
+        mov     edi, DWORD PTR [rax]
+        add     rcx, 4
+        cmp     edi, esi
+        jge     .L32
         add     rax, 4
-        cmp     esi, ecx
-        jle     .L36
-        mov     DWORD PTR [rax-4], ecx
-        add     rdx, 4
-        cmp     r9, r8
-        jnb     .L35
-.L13:
-        cmp     r11, rdx
-        jb      .L15
-.L37:
-        mov     rdi, rax
-        mov     rsi, rdx
-.L16:
+        jmp     .L4
+.L9:
+        mov     rdi, rcx
+        mov     rsi, rax
         movsd
-        cmp     r11, rsi
-        jnb     .L16
-        sub     r11, rdx
-        and     r11, -4
-        add     rax, r11
-.L17:
-        cmp     rax, OFFSET FLAT:temp
-        jb      .L7
-        sub     rax, OFFSET FLAT:temp
-        shr     rax, 2
-        lea     rcx, [4+rax*4]
+        mov     rax, rsi
+        mov     rcx, rdi
+.L29:
+        cmp     rdx, rax
+        jnb     .L9
+        cmp     rdx, r10
+        jb      .L33
+        sub     rdx, r10
         xor     eax, eax
-.L19:
+        shr     rdx, 2
+        lea     rcx, [4+rdx*4]
+.L13:
         mov     edx, DWORD PTR temp[rax]
         mov     DWORD PTR [r10+rax], edx
         add     rax, 4
-        cmp     rax, rcx
-        jne     .L19
-.L7:
+        cmp     rcx, rax
+        jne     .L13
         ret
-.L8:
+.L2:
         cmp     r9, r8
-        jb      .L13
-        mov     rdi, rax
+        jb      .L29
+        mov     rdi, rcx
         mov     rsi, r8
-.L14:
+.L8:
         movsd
         cmp     r9, rsi
-        jnb     .L14
+        jnb     .L8
         sub     r9, r8
-        and     r9, -4
-        lea     rax, [rax+4+r9]
-        cmp     r11, rdx
-        jnb     .L37
-.L15:
-        sub     rax, 4
-        jmp     .L17
+        shr     r9, 2
+        lea     rcx, [rcx+4+r9*4]
+        jmp     .L29
+.L33:
+        ret
 mergesort.part.0:
         mov     rax, rsi
         push    r12
@@ -100,11 +72,11 @@ mergesort.part.0:
         mov     rbx, rdi
         lea     r12, [rdi+rax*4]
         cmp     rdi, r12
-        jb      .L42
+        jb      .L38
         lea     rdi, [r12+4]
         cmp     rdi, rbp
-        jb      .L43
-.L40:
+        jb      .L39
+.L36:
         mov     rdx, rbp
         mov     rsi, r12
         mov     rdi, rbx
@@ -112,21 +84,21 @@ mergesort.part.0:
         pop     rbp
         pop     r12
         jmp     merge
-.L42:
+.L38:
         mov     rsi, r12
         call    mergesort.part.0
         lea     rdi, [r12+4]
         cmp     rdi, rbp
-        jnb     .L40
-.L43:
+        jnb     .L36
+.L39:
         mov     rsi, rbp
         call    mergesort.part.0
-        jmp     .L40
+        jmp     .L36
 mergesort:
         cmp     rdi, rsi
-        jb      .L46
+        jb      .L42
         ret
-.L46:
+.L42:
         jmp     mergesort.part.0
 main:
         sub     rsp, 8
