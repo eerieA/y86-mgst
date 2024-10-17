@@ -1,26 +1,26 @@
-merge:                                # Args: rdi is first, rsi is mid, rdx is last
+merge:                                # Args: rdi is first, rsi is last, rdx is mid
         mov     r10, rdi              # Copy first into r10, as initial_first for final copy
-        mov     r9, rsi               # Copy mid into r9, this gonna be current mid
-        lea     rax, [rsi+4]          # second = mid + 1, this gonna be current second
+        mov     r9, rsi               # Copy last into r9, this gonna be
+        lea     rax, [rdx+4]          # second = mid + 1, this gonna be current second
         mov     r8, rdi               # Copy first into r8, this gonna be current first
         mov     ecx, OFFSET FLAT:temp # rcx = temp
-        cmp     rsi, rdi              # Compare mid (rsi) and first (rdi)
+        cmp     rdx, rdi              # Compare mid (rdx) and first (rdi)
         jnb     .L30                  # If mid <= first, first half not enough ele
         jmp     .L2                   # If not, start from first half
-.L32:                                 # Case when first half is "smaller"
+.L32:
         add     r8, 4                 # Inc current first (r8) in first half
-        mov     edi, esi              # Copy esi into edi (edi = *first)
+        mov     esi, edi              # Copy edi into esi (esi = *first)
 .L4:                                  # Copy *dest++ = *first++ or = *second++
-        mov     DWORD PTR [rcx-4], edi          # Store the "smaller" element to temp
-        cmp     r9, r8
+        mov     DWORD PTR [rcx-4], esi          # Store the "smaller" element to temp
+        cmp     rdx, r8
         jb      .L29
 .L30:                                 # Main merging, compare and merge elements
-        cmp     rdx, rax              # Compare last (rdx) with second (rax)
+        cmp     r9, rax               # Compare last (r9) with second (rax)
         jb      .L2                   # If last > second, second half not enough ele
-        mov     esi, DWORD PTR [r8]             # esi = *first
-        mov     edi, DWORD PTR [rax]            # edi = *second
+        mov     edi, DWORD PTR [r8]             # edi = *first
+        mov     esi, DWORD PTR [rax]            # esi = *second
         add     rcx, 4                # Inc dest pointer (dest++)
-        cmp     edi, esi              # Compare *second and *first
+        cmp     esi, edi              # Compare *second and *first
         jge     .L32                  # If *second >= *first, first half is "smaller", go copy *first
         add     rax, 4                # If not, second half is "smaller", inc current second
         jmp     .L4                   # Go copy *second
@@ -31,14 +31,14 @@ merge:                                # Args: rdi is first, rsi is mid, rdx is l
         mov     rax, rsi              # rax = second again to recover
         mov     rcx, rdi              # rdi = temp again to recover
 .L29:                                 # Prep copying all back to original array
-        cmp     rdx, rax              # Compare last (rdx) with second (rax)
+        cmp     r9, rax               # Compare last (r9) with second (rax)
         jnb     .L9                   # If last <= second, go/cont copy second half leftovers
-        cmp     rdx, r10              # Compare last (rdx) with first (r10)
+        cmp     r9, r10               # Compare last (r9) with first (r10)
         jb      .L33                  # If last > first, all DONE
-        sub     rdx, r10              # If not, prep copying, rdx = last - first
+        sub     r9, r10               # If not, prep copying, r9 = last - first
         xor     eax, eax
-        shr     rdx, 2
-        lea     rcx, [4+rdx*4]        # rcx = number of elements to copy
+        shr     r9, 2
+        lea     rcx, [4+r9*4]         # rcx = number of elements to copy
 .L13:                                 # Loop part of .L29, copying everyone back
         mov     edx, DWORD PTR temp[rax]        # Load ele from temp, rax is current ptr in temp
         mov     DWORD PTR [r10+rax], edx        # Copy ele to ori array, r10+rax is current ptr in original
@@ -47,17 +47,17 @@ merge:                                # Args: rdi is first, rsi is mid, rdx is l
         jne     .L13                  # If temp != current ptr, repeat the copy loop
         ret                           # If temp == current ptr, all DONE
 .L2:                                  # Copy first half leftovers
-        cmp     r9, r8                # Compare mid (r9) and first (r8)
+        cmp     rdx, r8               # Compare mid (rdx) and first (r8)
         jb      .L29                  # If first > mid, go see if copy second half
         mov     rdi, rcx              # If not, prep copy fist half leftovers, rdi = rcx (temp)
         mov     rsi, r8               # Copy first into rsi
 .L8:                                  # Loop part of .L2
         movsd                         # Copy current ele from first half to temp
-        cmp     r9, rsi               # Compare mid (r9) with first (rsi)
+        cmp     rdx, rsi              # Compare mid (rdx) with first (rsi)
         jnb     .L8                   # If mid <= first, more elements to copy, loop
-        sub     r9, r8                # r9 = mid - first, remaining elements in first half
-        shr     r9, 2                 # Divide by 4
-        lea     rcx, [rcx+4+r9*4]     # Calculate new dest address
+        sub     rdx, r8               # rdx = mid - first, remaining elements in first half
+        shr     rdx, 2                # Divide by 4
+        lea     rcx, [rcx+4+rdx*4]    # Calculate new dest address
         jmp     .L29                  # Go see if copy second half
 .L33:
         ret
@@ -75,13 +75,14 @@ mergesort.part.0:                  # Args: rsi is last, rdi is first
 
         cmp     rdi, r12           # Compare the start pointer (rdi) with the midpoint (r12)
         jb      .L38               # Jump to .L38 if start (rdi) < mid (r12) (go sort first half)
+        
         lea     rdi, [r12+4]       # Set rdi to the next element after the midpoint (r12 + 4 bytes)
         cmp     rdi, rbp           # Compare rdi with the end pointer (rbp)
         jb      .L39               # Jump to .L39 if mid + 1 (rdi) < end (rbp) (go sort second half)
 
 .L36:                              # Inner fall-through, both sorted, prep merging
-        mov     rdx, rbp           # Set rdx to the end pointer (rbp) for merge()
-        mov     rsi, r12           # Set rsi to the midpoint (r12) for merge()
+        mov     rdx, r12           # Set rdx to the midpoint (r12) for merge()
+        mov     rsi, rbp           # Set rsi to the end pointer (rbp) for merge()
         mov     rdi, rbx           # Set rdi to the start pointer (rbx) for merge()
         pop     rbx                # Restore the old value of rbx (popped from stack)
         pop     rbp                # Restore the old value of rbp (popped from stack)

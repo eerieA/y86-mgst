@@ -98,7 +98,7 @@ prepare_mergeloop2:
     popq   %r12                    # Restore callee-saved
     popq   %rbx                    # Restore callee-saved
     popq   %rbp                    # Restore callee-saved
-    jmp merge_end
+    ret
 
 #
 # Copy helper. Optimized to scratch and use caller-saved reg r11

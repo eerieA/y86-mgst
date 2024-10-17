@@ -1,8 +1,8 @@
 mergesort:                  # Recursive V2.00
     # Check if the range has more than one element
     rrmovq %rsi, %rax
-    subq   %rdi, %rax
-    jle    done             # If not, we're done
+    subq   %rdi, %rax       # rax = rsi (last) - rdi (first)
+    jle    done             # If last <= first, we're done
 
     # Calculate mid point
     rrmovq %rdi, %rdx
