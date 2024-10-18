@@ -27,51 +27,52 @@ main:
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
 #
-mergesort:                  # Recursive V2.00
-    # Check if the range has more than one element
+mergesort:                  # Recursive V4.01
     rrmovq %rsi, %rax
-    subq   %rdi, %rax
-    jle    done             # If not, we're done
+    subq   %rdi, %rax               # rax = rsi (last) - rdi (first)
+    jg     ms_main                  # If last > first, go to main part
+    ret                             # If last <= first, all done
 
-    # Calculate mid point
-    rrmovq %rdi, %rdx
-    addq   %rsi, %rdx
-    irmovq $2,   %rax
-    divq   %rax, %rdx
-    irmovq $-8,  %rax
-    andq   %rax, %rdx
-
+ms_main:
     # Save registers
-    pushq  %rdi
-    pushq  %rsi
-    pushq  %rdx
+    pushq  %r12
+    rrmovq %rdi, %r12               # r12 = first
 
-    # Sort left half: mergesort(first, mid)
-    rrmovq %rdx, %rsi
+    # Calc mid point.
+    irmovq $2,   %rax
+    addq   %rsi, %r12               # r12 = first + last
+    irmovq $-8,  %r11
+    pushq  %rbp                     # optimize
+    divq   %rax, %r12               # r12 = first + last / 2
+    
+    rrmovq %rsi, %rbp               # Copy last in rbp
+    
+    # Calc mid point cont. They are pointers, so andq -8 is a must.
+    andq   %r11, %r12               # Chop last 3 bits, now r12 is mid
+    
+    pushq  %rbx                     # optimize
+    rrmovq %rdi, %rbx               # Copy first in rbx
+
+    # Sort left half.               # rdi is already the correct start
+    rrmovq %r12, %rsi               # rsi = mid, for mergesort(first, mid)
     call   mergesort
 
-    # Restore and save registers
-    popq   %rdx
-    popq   %rsi
-    pushq  %rsi
-    pushq  %rdx
-
-    # Sort right half: mergesort(mid+1, last)
-    rrmovq %rdx, %rdi
-    irmovq $8, %rax
-    addq   %rax, %rdi
+    # Sort right half.
+    irmovq $8,   %rax
+    rrmovq %r12, %rdi
+    rrmovq %rbp, %rsi               # rsi = last
+    addq   %rax, %rdi               # rdi = mid + 1, for mergesort(mid+1, last)
     call   mergesort
-
-    # Restore registers
-    popq   %rdx
-    popq   %rsi
-    popq   %rdi
 
     # Merge the sorted halves
-    jmp    merge    # Tail call optimization
-    merge_end:
+    rrmovq %r12, %rdx               # rdx = mid, for merge()
+    rrmovq %rbp, %rsi               # rsi = last, for merge()
+    rrmovq %rbx, %rdi               # rdi = first, for merge()
+    call    merge
 
-done:
+    popq   %rbx
+    popq   %rbp
+    popq   %r12
     ret
 
 #
@@ -185,8 +186,8 @@ prepare_mergeloop2:
     popq   %r12                    # Restore callee-saved
     popq   %rbx                    # Restore callee-saved
     popq   %rbp                    # Restore callee-saved
-    #ret
-    jmp merge_end
+    ret
+    #jmp merge_end
 
 #
 # Copy helper. Optimized to scratch and use caller-saved reg r11
