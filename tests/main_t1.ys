@@ -1,0 +1,58 @@
+#
+# Calling conventions:
+#     %rdi, %rsi, %rdx, %rcx, %r8, %r9, %r10, %r11 and %rax are caller saved
+#     %rbx, %rbp, %r12, %r13, %r14 are callee saved
+#     %rsp can not be used except for its normal use as a stack pointer.
+#     argument are passed through registers %rdi, %rsi, %rdx in this order.
+#     values are returned through %rax
+
+.pos 0x100
+
+main:
+	irmovq bottom,  %rsp     # initialize stack
+	irmovq array, %rdi       # %rdi = pointer to first element of the array
+	xorq   %rax, %rax        # %rsi = size
+	mrmovq size(%rax), %rsi
+	irmovq $1, %rax          # %rsi = size - 1
+	subq   %rax, %rsi
+	addq   %rsi, %rsi        # %rsi = 8 * (size - 1)
+	addq   %rsi, %rsi
+	addq   %rsi, %rsi
+	addq   %rdi, %rsi        # %rsi = pointer to last element of the array.
+	call   mergesort
+	halt
+
+
+# INSERT mergesort: HERE
+
+
+
+# INSERT merge: HERE
+
+
+#
+# Array to sort
+#
+.pos 0x1000
+array:
+	.quad	2		  # *0x1000
+	.quad	3		  # *0x1008
+	.quad	1		  # *0x1010
+
+#
+# Temporary array.
+#
+temp:   .quad 0,3
+
+
+#	
+# Array size.
+#	
+size:   .quad 3
+	
+#
+# Stack (32 sixty-four bit words is more than enough here).
+#
+.pos 0x3000
+top:	            .quad 0x00000000,0x20     # top of stack.
+bottom:             .quad 0x00000000          # bottom of stack.

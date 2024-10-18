@@ -1,0 +1,44 @@
+mergesort:                  # Recursive V4.00
+    rrmovq %rsi, %rax
+    subq   %rdi, %rax               # rax = rsi (last) - rdi (first)
+    jg     ms_main                  # If last > first, go to main part
+    ret                             # If last <= first, all done
+
+ms_main:
+    # Save registers
+    pushq  %r12
+    pushq  %rbp
+    pushq  %rbx
+
+    rrmovq %rdi, %r12               # r12 = first
+    rrmovq %rdi, %rbx               # Copy first in rbx
+    rrmovq %rsi, %rbp               # Copy last in rbp
+
+    # Calculate mid point. They are pointers, so andq -8 is a must
+    addq   %rsi, %r12               # r12 = first + last
+    irmovq $2,   %rax
+    irmovq $-8,  %r11
+    divq   %rax, %r12               # r12 = first + last / 2
+    andq   %r11, %r12               # Chop last 3 bits, now r12 is mid
+
+    # Sort left half.               # rdi is already the correct start
+    rrmovq %r12, %rsi               # rsi = mid, for mergesort(first, mid)
+    call   mergesort
+
+    # Sort right half.
+    rrmovq %r12, %rdi
+    irmovq $8,   %rax
+    rrmovq %rbp, %rsi               # rsi = last
+    addq   %rax, %rdi               # rdi = mid + 1, for mergesort(mid+1, last)
+    call   mergesort
+
+    # Merge the sorted halves
+    rrmovq %r12, %rdx               # rdx = mid, for merge()
+    rrmovq %rbp, %rsi               # rsi = last, for merge()
+    rrmovq %rbx, %rdi               # rdi = first, for merge()
+    call    merge
+
+    popq   %rbx
+    popq   %rbp
+    popq   %r12
+    ret
