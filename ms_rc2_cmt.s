@@ -1,63 +1,67 @@
 merge:                                # Args: rdi is first, rsi is last, rdx is mid
         mov     r10, rdi              # Copy first into r10, as initial_first for final copy
-        mov     r9, rsi               # Copy last into r9, this gonna be
+        mov     r9, rsi               # Copy last into r9, as final dest for final copy
         lea     rax, [rdx+4]          # second = mid + 1, this gonna be current second
         mov     r8, rdi               # Copy first into r8, this gonna be current first
         mov     ecx, OFFSET FLAT:temp # rcx = temp
+
         cmp     rdx, rdi              # Compare mid (rdx) and first (rdi)
-        jnb     .L30                  # If mid <= first, first half not enough ele
+        jnb     .L30                  # If mid >= first, first half not enough ele
         jmp     .L2                   # If not, start from first half
-.L32:
+.L32: # fst_smaller
         add     r8, 4                 # Inc current first (r8) in first half
         mov     esi, edi              # Copy edi into esi (esi = *first)
-.L4:                                  # Copy *dest++ = *first++ or = *second++
+.L4:  # copy_smaller                  # Copy *dest++ = *first++ or = *second++
         mov     DWORD PTR [rcx-4], esi          # Store the "smaller" element to temp
-        cmp     rdx, r8
-        jb      .L29
-.L30:                                 # Main merging, compare and merge elements
+        cmp     rdx, r8               # Compare mid (rdx) and first (r8)
+        jb      .L29                  # If mid < first, go copy all back
+.L30: # compare                       # Main compare, with checking second half
         cmp     r9, rax               # Compare last (r9) with second (rax)
-        jb      .L2                   # If last > second, second half not enough ele
+        jb      .L2                   # If last < second, second half not enough ele
+
         mov     edi, DWORD PTR [r8]             # edi = *first
         mov     esi, DWORD PTR [rax]            # esi = *second
         add     rcx, 4                # Inc dest pointer (dest++)
+
         cmp     esi, edi              # Compare *second and *first
         jge     .L32                  # If *second >= *first, first half is "smaller", go copy *first
         add     rax, 4                # If not, second half is "smaller", inc current second
         jmp     .L4                   # Go copy *second
-.L9:                                  # Copy second half leftovers
+.L9:  #copy_scd_loop                  # Copy second half leftovers
         mov     rdi, rcx              # rdi = temp
         mov     rsi, rax              # rsi = second
         movsd                         # Copy 4 bytes from temp (*%rcx) to ori (*%rax)
         mov     rax, rsi              # rax = second again to recover
-        mov     rcx, rdi              # rdi = temp again to recover
+        mov     rcx, rdi              # rcx = temp again to recover
 .L29:                                 # Prep copying all back to original array
         cmp     r9, rax               # Compare last (r9) with second (rax)
-        jnb     .L9                   # If last <= second, go/cont copy second half leftovers
-        cmp     r9, r10               # Compare last (r9) with first (r10)
-        jb      .L33                  # If last > first, all DONE
+        jnb     .L9                   # If last >= second, stop and cont copy second half
+        cmp     r9, r10               # Compare last (r9) with initial_first (r10)
+        jb      .L33                  # If last < initial_first, nothing, DONE
         sub     r9, r10               # If not, prep copying, r9 = last - first
         xor     eax, eax
-        shr     r9, 2
-        lea     rcx, [4+r9*4]         # rcx = number of elements to copy
-.L13:                                 # Loop part of .L29, copying everyone back
+        shr     r9, 2                 # r9 /= 4, r9 now holds number of elements
+        lea     rcx, [4+r9*4]         # rcx = (num of ele + 1) * 4
+.L13:  #copy_bk_loop                  # Loop part of .L29, copying everyone back
         mov     edx, DWORD PTR temp[rax]        # Load ele from temp, rax is current ptr in temp
         mov     DWORD PTR [r10+rax], edx        # Copy ele to ori array, r10+rax is current ptr in original
         add     rax, 4                # Increment current pointer in temp
         cmp     rcx, rax              # Compare temp (rcx) with current ptr
         jne     .L13                  # If temp != current ptr, repeat the copy loop
         ret                           # If temp == current ptr, all DONE
-.L2:                                  # Copy first half leftovers
+.L2:  #copy_fst_pre                   # Copy first half prep
         cmp     rdx, r8               # Compare mid (rdx) and first (r8)
-        jb      .L29                  # If first > mid, go see if copy second half
+        jb      .L29                  # If mid < first, go check second half
         mov     rdi, rcx              # If not, prep copy fist half leftovers, rdi = rcx (temp)
         mov     rsi, r8               # Copy first into rsi
-.L8:                                  # Loop part of .L2
+.L8:  #copy_fst_8                     # Loop part of .L2
         movsd                         # Copy current ele from first half to temp
         cmp     rdx, rsi              # Compare mid (rdx) with first (rsi)
-        jnb     .L8                   # If mid <= first, more elements to copy, loop
+        jnb     .L8                   # If mid >= first, more elements to copy, loop
+
         sub     rdx, r8               # rdx = mid - first, remaining elements in first half
-        shr     rdx, 2                # Divide by 4
-        lea     rcx, [rcx+4+rdx*4]    # Calculate new dest address
+        shr     rdx, 2                # rdx /= 4
+        lea     rcx, [rcx+4+rdx*4]    # Calculate new dest address, rcx = rcx + (rdx+1)*4
         jmp     .L29                  # Go see if copy second half
 .L33:
         ret

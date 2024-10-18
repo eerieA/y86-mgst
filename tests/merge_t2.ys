@@ -1,0 +1,37 @@
+main:
+    irmovq stack, %rsp
+    
+    irmovq array, %rdi
+    irmovq array, %rsi
+    irmovq array, %rdx
+    irmovq $32, %r12
+    addq   %r12, %rsi
+    irmovq $8, %r12
+    addq   %r12, %rdx
+
+    # This version does not modify rdi, rsi or rdx so no pushes and pops
+    call   merge
+    halt
+
+# INSERT merge: HERE
+
+
+.pos 0x2000
+stack:
+    .quad 0x1
+    
+.pos 0x3000
+array:
+    .quad 0x8                # *0x3000, start
+    .quad 0x18               # *0x3008, mid
+    .quad 0x1                # *0x3010
+    .quad 0x2                # *0x3018
+    .quad 0x4                # *0x3020
+
+.pos 0x4000
+temp:
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
+    .quad 0x1
