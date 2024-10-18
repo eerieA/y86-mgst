@@ -1,4 +1,4 @@
-mergesort:                  # Recursive V4.01
+mergesort:                          # Recursive V4.02
     rrmovq %rsi, %rax
     subq   %rdi, %rax               # rax = rsi (last) - rdi (first)
     jg     ms_main                  # If last > first, go to main part
@@ -29,17 +29,17 @@ ms_main:
     call   mergesort
 
     # Sort right half.
-    irmovq $8,   %rax
     rrmovq %r12, %rdi
     rrmovq %rbp, %rsi               # rsi = last
-    addq   %rax, %rdi               # rdi = mid + 1, for mergesort(mid+1, last)
+    subq   %r11, %rdi               # rdi = mid + 1, for mergesort(mid+1, last)
     call   mergesort
 
     # Merge the sorted halves
     rrmovq %r12, %rdx               # rdx = mid, for merge()
     rrmovq %rbp, %rsi               # rsi = last, for merge()
     rrmovq %rbx, %rdi               # rdi = first, for merge()
-    call    merge
+    jmp    merge                    # Tail call optz
+    merge_end:
 
     popq   %rbx
     popq   %rbp
