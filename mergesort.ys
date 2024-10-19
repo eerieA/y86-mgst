@@ -95,7 +95,6 @@ init_check:                         # Outer fall-through, continue or ret
     subq   %rdi, %r8                # r8 = rsi (last) - rdi (first)
     jg    mergesort                 # If last > first, go to main part
     
-    xorq %r13, %r13
     ret                             # If last <= first, all done
 
 #
