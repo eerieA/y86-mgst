@@ -1,18 +1,20 @@
-merge:                      # V3.00. Args: rdi is first, rsi is last, rdx is mid
-    pushq %rbx
-    pushq %rbp
-    pushq %r12
-    pushq %r13
+merge:                      # V3.01. Args: rdi is first, rsi is last, rdx is mid
+    pushq %rbx              # save register
 
+    irmovq $8, %r11         # constant
+    rrmovq %rdx, %rax       # Optz setup rax
+    rrmovq %rdx, %rbx       # Optz setup temp register
+    
+    pushq %rbp              # Optz save register
+    
     rrmovq %rdi, %r10       # r10 = first (copy first to r10 for final copy)
     rrmovq %rsi, %r9        # r9 = last (copy last to r9 for final copy)
-    rrmovq %rdx, %rax
-    irmovq $8, %r11
     addq %r11, %rax         # rax = mid + 1, this gonna be current second
     rrmovq %rdi, %r8        # r8 = first, this gonna be current first
     irmovq temp, %rcx       # rcx = temp, this gonna be current ptr in temp
-
-    rrmovq %rdx, %rbx
+    
+    pushq %r12              # Optz save register
+    
     subq %rdi, %rbx         # compare mid and first (rdx - rdi)
     jge  compare            # if mid >= first, no leftovers, go to compare
     jmp copy_fst_pre        # if not, go copy first half leftovers
@@ -102,7 +104,6 @@ copy_fst_8:                 # loop part of copy_fst_pre
     jmp check_29            # Go check second half
 
 merge_done:
-    popq %r13
     popq %r12
     popq %rbp
     popq %rbx
