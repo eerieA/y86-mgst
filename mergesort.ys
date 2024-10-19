@@ -1,4 +1,4 @@
-# V2.04
+# V3.00
 # Calling conventions:
 #     %rdi, %rsi, %rdx, %rcx, %r8, %r9, %r10, %r11 and %rax are caller saved
 #     %rbx, %rbp, %r12, %r13, %r14 are callee saved
@@ -27,53 +27,76 @@ main:
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
 #
-mergesort:                          # Recursive V4.02
-    rrmovq %rsi, %rax
-    subq   %rdi, %rax               # rax = rsi (last) - rdi (first)
-    jg     ms_main                  # If last > first, go to main part
-    ret                             # If last <= first, all done
-
-ms_main:
-    # Save registers
+mergesort:                          # Recursive V3.01. Pair with merge() V3.02
+#    %rdi: pointer to the first element of the range to sort.
+#    %rsi: pointer to the last element of the range to sort.
+    # Calculate mid point. They are pointers, so andq -8 is a must
     pushq  %r12
+    
     rrmovq %rdi, %r12               # r12 = first
-
-    # Calc mid point.
-    irmovq $2,   %rax
+    irmovq $2,   %rax               # constant 2
+    irmovq $-8,  %r11               # constant -8
     addq   %rsi, %r12               # r12 = first + last
-    irmovq $-8,  %r11
-    pushq  %rbp                     # optimize
+
+    pushq  %rbp
+    rrmovq %rsi, %rbp               # Make a copy of last (rsi) in rbp
+    
     divq   %rax, %r12               # r12 = first + last / 2
-    
-    rrmovq %rsi, %rbp               # Copy last in rbp
-    
-    # Calc mid point cont. They are pointers, so andq -8 is a must.
     andq   %r11, %r12               # Chop last 3 bits, now r12 is mid
-    
-    pushq  %rbx                     # optimize
-    rrmovq %rdi, %rbx               # Copy first in rbx
 
-    # Sort left half.               # rdi is already the correct start
-    rrmovq %r12, %rsi               # rsi = mid, for mergesort(first, mid)
-    call   mergesort
+    pushq  %rbx
+    rrmovq %rdi, %rbx               # Make a copy of start (rdi) in rbx
 
-    # Sort right half.
-    rrmovq %r12, %rdi
-    rrmovq %rbp, %rsi               # rsi = last
-    subq   %r11, %rdi               # rdi = mid + 1, for mergesort(mid+1, last)
-    call   mergesort
+    rrmovq %r12, %r8                # r8 = mid
+    subq   %rdi, %r8                # r8 = mid - start
+    jg     sort_left                # If mid > start, go sort left half
 
-    # Merge the sorted halves
-    rrmovq %r12, %rdx               # rdx = mid, for merge()
-    rrmovq %rbp, %rsi               # rsi = last, for merge()
-    rrmovq %rbx, %rdi               # rdi = first, for merge()
-    jmp    merge                    # Tail call optz
-    merge_end:
+    rrmovq %r12, %rdi               # rdi = mid
+    rrmovq %r12, %r8                # r8 = mid
+    subq   %r11, %rdi               # rdi = mid + 1
+    subq   %r11, %r8                # r8 = mid + 1
+    subq   %rbp, %r8                # r8 = mid + 1 - last
+    jl     sort_right               # If mid + 1 < last, go sort right half
 
-    popq   %rbx
+prep_merge:                         # Inner fall-through, both sorted, prep merging
+    rrmovq %rbx, %rdi               # Copy start (rbx) as the first (rdi) for merge()
+    popq   %rbx                     # Restore registers
+    rrmovq %rbp, %rsi               # Copy last (rbp) as the end (rsi) for merge()
+    rrmovq %r12, %rdx               # Copy mid (r12) as the mid (rdx) for merge()
+
+    # Restore registers
     popq   %rbp
     popq   %r12
-    ret
+
+    # Merge the sorted halves
+    jmp    merge
+
+sort_left:                          # mergesort(first, mid)
+    # first (rdi) is the first (rdi) for the right half, already there
+    rrmovq %r12, %rsi               # mid (r12) is the last (rsi) for the left half
+    call   mergesort
+
+    rrmovq %r12, %r8                # r8 = mid
+    rrmovq %r12, %rdi
+    subq   %r11, %r8                # r8 = mid + 1
+    subq   %r11, %rdi               # rdi = mid + 1
+    subq   %rbp, %r8                # r8 = (mid + 1) - last 
+    jge    prep_merge               # If mid + 1 >= last, go to prep_merge
+
+sort_right:                         # mergesort(mid+1, last)
+    # mid + 1 (rdi) is the first (rdi) for the right half, already done
+    rrmovq %rbp, %rsi               # last (rbp) is the last (rsi) for the right half
+    call   mergesort
+    jmp    prep_merge               # Both sorted, go to prep_merge
+
+init_check:                         # Outer fall-through, continue or ret
+    # Check if the range has more than one element
+    rrmovq %rsi, %r8                # r8 = rsi
+    subq   %rdi, %r8                # r8 = rsi (last) - rdi (first)
+    jg    mergesort                 # If last > first, go to main part
+    
+    xorq %r13, %r13
+    ret                             # If last <= first, all done
 
 #
 # Merge (equivalent to `merge(first, mid, last)`)
@@ -81,142 +104,110 @@ ms_main:
 #    %rsi: pointer to the last element of the range to merge.
 #    %rdx: pointer to the middle element of the range to merge.
 #
-# %rdi is i (starts from initial `first`)
-# %rcx is j (starts from `last`)
-# %rdx is mid
-# %rsi is last
-# %rbp is dest
-merge:                             # V2.02
-    pushq  %rbp                    # Save initial dest
-    pushq  %rbx                    # Save initial ???, by calling convention
-    pushq  %r12                    # Callee-saved - will hold last
-    pushq  %r13                    # Callee-saved - will hold mid
-    
-    irmovq $8,   %r8               # Constant 8 for pointer arithmetic
-    
-    # Initialize second pointer (j)
-    rrmovq %rdx, %rcx              # mid -> rcx
-    irmovq temp, %rbp              # Load temp array address early
-    addq   %r8, %rcx               # second = mid + 1
-    
-    # Store bounds in callee-saved registers
-    rrmovq %rdx, %r13              # Store mid in r13
-    rrmovq %rsi, %r12              # Store last in r12
-    
-    # Pre-load values for first comparison
-    mrmovq 0(%rdi), %r9            # Pre-load A[i]
-    mrmovq 0(%rcx), %r10           # Pre-load A[j]
-    
-    # Initial bounds check (optimize common case)
-    rrmovq %r13, %rax    
-    subq   %rdi, %rax              # mid(%r13) - first(%rdi)? Mostly >= 0
-    jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
-    
-    rrmovq %r12, %rax
-    subq   %rcx, %rax              # last(%r12) - second(%rcx)? Mostly >= 0
-    jl     prepare_mergeloop2      # Rarely < 0, forward not taken is good
+merge:                      # V3.02. Args: rdi is first, rsi is last, rdx is mid
+    pushq %rbx              # save register
 
-    pushq  %rdi                    # Save initial first pointer
+    #irmovq $8, %r11         # constant, obsolete. Now reusing r11=$-8 in mergesort()
+    rrmovq %rdx, %rax       # Optz setup rax
+    rrmovq %rdx, %rbx       # Optz setup temp register
     
-main_merge_loop:
-    # Compare pre-loaded values
-    rrmovq %r9, %rax               
-    subq   %r10, %rax              # A[i] - A[j]? ~ 50-50%
-    jge    store_second            # If A[i] >= A[j], store A[j] (smaller)
+    pushq %rbp              # Optz save register
     
-store_first:                       # Store A[i] (smaller)
-    rmmovq %r9, 0(%rbp)            
-    addq   %r8, %rdi
+    rrmovq %rdi, %r10       # r10 = first (copy first to r10 for final copy)
+    rrmovq %rsi, %r9        # r9 = last (copy last to r9 for final copy)
+    subq %r11, %rax         # rax = mid + 1, this gonna be current second
+    rrmovq %rdi, %r8        # r8 = first, this gonna be current first
+    irmovq temp, %rcx       # rcx = temp, this gonna be current ptr in temp
     
-    # Quick bounds check using dedicated register
-    rrmovq %r13, %rax
-    addq   %r8, %rbp               # Inc dest
-    subq   %rdi, %rax              # mid(%r13) - first(%rdi)? Mostly >= 0
-    jge    load_first_continue     # Mostly >= 0, backward taken
-    jmp    prepare_mergeloop2      # Rarely < 0, fall through
+    pushq %r12              # Optz save register
+    pushq %r13              # Optz save register
+    
+    subq %rdi, %rbx         # compare mid and first (rdx - rdi)
+    jge  compare            # if mid >= first, no leftovers, go to compare
+    jmp copy_fst_pre        # if not, go copy first half leftovers
 
-load_first_continue:
-    mrmovq 0(%rdi), %r9            # Pre-load next A[i]
-    jmp    main_merge_loop         # Back to main loop
+fst_smaller:                # Set up correct ele for copying
+    subq %r11, %r8          # increment current first
+    rrmovq %rbp, %rbx       # rbx should be smaller one, so = *first
+copy_smaller:               # copy *dest++ = *first++ or = *second++
+    rmmovq %rbx, -8(%rcx)   # store the "smaller" element to temp
 
-store_second:                      # Store A[j] (smaller)
-    rmmovq %r10, 0(%rbp)           
-    addq   %r8, %rcx
-    
-    # Quick bounds check using dedicated register
-    rrmovq %r12, %rax
-    addq   %r8, %rbp               # Inc dest
-    subq   %rcx, %rax              # last(%r12) - second(%rcx)? Mostly >= 0
-    jge    load_second_continue    # Mostly >= 0, backward taken
-    jmp    prepare_mergeloop2      # Rarely < 0, fall through
+    rrmovq %r8, %r13
+    subq %rdx, %r13         # compare first - mid
+    jg check_29             # if first > mid, go check second half
 
-load_second_continue:
-    mrmovq 0(%rcx), %r10           # Pre-load next A[j]
-    jmp    main_merge_loop
+compare:                    # compare and merge elements
+    rrmovq %r9, %r13
+    subq %rax, %r13         # compare last and second (r9 - rax)
+    jl copy_fst_pre         # if last < second, second half depleted, go check first
 
-prepare_mergeloop2:
-    # Handle leftovers from first half
-    rrmovq %r13, %rsi              # Setup args for copy: mid -> last pointer
-    rrmovq %rbp, %rdx              # temp -> dest pointer
-    call   copy
-    rrmovq %rax, %rbp              # Save new temp pointer
-    
-    # Handle leftovers from second half
-    rrmovq %rcx, %rdi              # second -> first pointer
-    rrmovq %r12, %rsi              # Use last from r12
-    call   copy
-    rrmovq %rax, %rbp              # Save final temp pointer
-    
-    # Copy everything back to original array
-    popq   %rdi                    # Restore initial first pointer
-    
-    # Setup final copy
-    pushq  %rdi                    # Save initial `first` again
-    rrmovq %r12, %rsi              # Use last from r12. So no need to push %rsi, and %rsi not scrathed by copy()
-    subq   %rdi, %rsi              # %rsi = `last` - initial `first`
-    rrmovq %rdi, %rdx              # Original array as destination
-    irmovq temp, %rdi              # `temp` points to the first ele for copy()
-    addq   %rdi, %rsi              # `temp` + `last` - initial `first` has the last ele for copy()
-    
-    call   copy
-    
-    # Cleanup and return
-    popq   %rdi                    # Restore initial `first`
-    popq   %r13                    # Restore callee-saved
-    popq   %r12                    # Restore callee-saved
-    popq   %rbx                    # Restore callee-saved
-    popq   %rbp                    # Restore callee-saved
-    #ret
-    jmp merge_end
+    mrmovq (%r8), %rbp      # rbp = *first
+    mrmovq (%rax), %rbx     # rbx = *second
+    subq %r11, %rcx         # increment dest pointer (dest++)
 
-#
-# Copy helper. Optimized to scratch and use caller-saved reg r11
-#    %rdi [input]: pointer to the first element to copy.
-#    %rsi [input]: pointer to the last element to copy.
-#    %rdx [input & output]: pointer to where the elements go.
-# 
-copy:
-    irmovq $8, %r8                 # Pre-load constant 8
+    rrmovq %rbp, %r13
+    subq %rbx, %r13         # compare *first - *second
+    jle fst_smaller         # if *first <= *second, first half is "smaller", go copy *first
+    subq %r11, %rax         # if not, increment current second
+    jmp copy_smaller        # go copy *second
+
+copy_scd_loop:              # copy second half
+    mrmovq (%rax), %r12     # load element from second half
+    rmmovq %r12, (%rcx)     # copy to temp
+    subq %r11, %rax         # increment second half pointer
+    subq %r11, %rcx         # increment temp pointer
+
+check_29:                   # check if can copy back to the original array
+    rrmovq %r9, %r13
+    subq %rax, %r13         # compare last - second
+    jge copy_scd_loop       # if last >= second, dispatch to copy second half
+                            # if not, both halves copied, do outer check    
+    rrmovq %r9, %r13
+    subq %r10, %r13         # compare init last (r9) - initial_first (r10)
+    jl merge_done           # if init last < initial_first, empty, done
     
-    rrmovq %rsi, %rax              # Prepare for comparison
-    subq   %rdi, %rax              # Sets condition codes
-    jl     copyend                 # Taken if first > last
+    rrmovq %r10, %rax       # if not, prep copy back, rax gonna be current ptr in original array
+    subq %r10, %r9          # r9 = init last - initial_first, num of ele in bytes
+    irmovq temp, %rcx       # rcx = temp again
+    irmovq temp, %rbx
+    addq %r9, %rbx          # rbx = temp + num of ele = terminal dest
+copy_bk_loop:               # Loop part of check_29, copying everyone back
+    mrmovq (%rcx), %rbp     # load current ele from temp
+    rmmovq %rbp, (%rax)     # copy to original array
+    subq %r11, %rcx         # increment current ptr in temp
+    subq %r11, %rax         # increment current ptr in original array
+
+    rrmovq %rbx, %r11       # ??? super oddly if use anything not r11 here, inf loop
+    subq %rcx, %r11         # Compare terminal dest (rbx) - current ptr (rcx)
+    irmovq $-8, %r11        # so have to recover r11 to -8 as in mergesort()
+    jge copy_bk_loop        # if terminal dest >= current ptr, loop
+    jmp merge_done          # if terminal dest < current ptr, all done
+
+copy_fst_pre:               # copy first half prep
+    rrmovq %r8, %r13
+    subq %rdx, %r13         # compare first (r8) - mid (rdx)
+    jg check_29             # if first > mid, go check second half
+    rrmovq %rcx, %rbx       # if not, prepare to copy leftovers, rbx = temp
+copy_fst_8:                 # loop part of copy_fst_pre
+    mrmovq (%r8), %r12      # load element *first
+    rmmovq %r12, (%rbx)     # copy to temp
+    subq %r11, %rbx         # inc ptr in temp
+    subq %r11, %r8          # inc ptr in first half
+
+    rrmovq %r8, %r13
+    subq %rdx, %r13         # compare first (r8) - mid (rdx)
+    jle copy_fst_8          # if first <= mid, more elements to copy, loop
+                            # if not, prep to check second half
     
-copycontinue:
-    mrmovq (%rdi), %rax            # Load value from source
-    
-    addq   %r8, %rdi               # Update pointers while load is happening
-    addq   %r8, %rdx
-    
-    rrmovq %rsi, %r11              # Use caller-saved r11 for comparison
-    rmmovq %rax, -8(%rdx)          # Store loaded value
-    subq   %rdi, %r11              # Sets condition codes
-    jge    copycontinue            # Loop if more elements
-    
-copyend:
-    rrmovq %rdx, %rax              # Return final destination pointer
+    jmp check_29            # Go check second half
+
+merge_done:
+    popq %r13
+    popq %r12
+    popq %rbp
+    popq %rbx
     ret
-
+    
 
 #
 # Array to sort
