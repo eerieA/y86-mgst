@@ -1,0 +1,67 @@
+mergesort:                          # Recursive V3.00. Pair with merge() V3.00
+#    %rdi: pointer to the first element of the range to sort.
+#    %rsi: pointer to the last element of the range to sort.
+    pushq  %r12
+    pushq  %rbp
+    pushq  %rbx
+
+    rrmovq %rdi, %rbx               # Make a copy of start (rdi) in rbx
+    rrmovq %rsi, %rbp               # Make a copy of last (rsi) in rbp
+
+    # Calculate mid point. They are pointers, so andq -8 is a must
+    rrmovq %rdi, %r12               # r12 = first
+    addq   %rsi, %r12               # r12 = first + last
+    irmovq $2,   %rax
+    divq   %rax, %r12               # r12 = first + last / 2
+    irmovq $-8,  %rax
+    andq   %rax, %r12               # Chop last 3 bits, now r12 is mid
+
+    rrmovq %r12, %r8                # r8 = mid
+    subq   %rdi, %r8                # r8 = mid - start
+    jg     sort_left                # If mid > start, go sort left half
+
+    rrmovq %r12, %rdi               # rdi = mid
+    irmovq $8,  %rax
+    addq   %rax, %rdi               # rdi = mid + 1
+    rrmovq %rdi, %r8                # r8 = mid + 1
+    subq   %rbp, %r8                # r8 = mid + 1 - last
+    jl     sort_right               # If mid + 1 < last, go sort right half
+
+prep_merge:                         # Inner fall-through, both sorted, prep merging
+    rrmovq %r12, %rdx               # Copy mid (r12) as the mid (rdx) for merge()
+    rrmovq %rbp, %rsi               # Copy last (rbp) as the end (rsi) for merge()
+    rrmovq %rbx, %rdi               # Copy start (rbx) as the first (rdi) for merge()
+
+    # Restore registers
+    popq   %rbx
+    popq   %rbp
+    popq   %r12
+
+    # Merge the sorted halves
+    jmp    merge
+
+sort_left:                          # mergesort(first, mid)
+    # first (rdi) is the first (rdi) for the right half, already there
+    rrmovq %r12, %rsi               # mid (r12) is the last (rsi) for the left half
+    call   mergesort
+
+    rrmovq %r12, %rdi
+    irmovq $8,  %rax
+    addq   %rax, %rdi               # rdi = mid + 1
+    rrmovq %rbp, %r8                # r8 = last
+    subq   %rdi, %r8                # r8 = last - mid + 1
+    jle    prep_merge               # If last <= mid + 1, go to prep_merge
+
+sort_right:                         # mergesort(mid+1, last)
+    # mid + 1 (rdi) is the first (rdi) for the right half, already done
+    rrmovq %rbp, %rsi               # last (rbp) is the last (rsi) for the right half
+    call   mergesort
+    jmp    prep_merge               # Both sorted, go to prep_merge
+
+init_check:                         # Outer fall-through, continue or ret
+    # Check if the range has more than one element
+    rrmovq %rsi, %r8                # r8 = rsi
+    subq   %rdi, %r8                # r8 = rsi (last) - rdi (first)
+    jg    mergesort                 # If last > first, go to main part
+    
+    ret                             # If last <= first, all done

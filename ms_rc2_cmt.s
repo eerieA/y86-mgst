@@ -67,47 +67,47 @@ merge:                                # Args: rdi is first, rsi is last, rdx is 
         ret
 
 mergesort.part.0:                  # Args: rsi is last, rdi is first
-        mov     rax, rsi           # Copy the end pointer (rsi) to rax
+        mov     rax, rsi           # Copy last (rsi) to rax
         push    r12                # Save r12 (callee-saved register) on the stack
         sub     rax, rdi           # Calculate the size of the current segment: rax = rsi - rdi
         push    rbp                # Save rbp (callee-saved register) on the stack
-        mov     rbp, rsi           # Copy the end pointer (rsi) in rbp
+        mov     rbp, rsi           # Copy last (rsi) in rbp
         sar     rax, 3             # rax = (rsi - rdi) / 8, now rax is num of elements
         push    rbx                # Save rbx (callee-saved register) on the stack
-        mov     rbx, rdi           # Copy the start pointer (rdi) to rbx
+        mov     rbx, rdi           # Copy start (rdi) to rbx
         lea     r12, [rdi+rax*4]   # Compute the midpoint r12 = rdi + (rax * 4), dividing the array roughly in half
 
-        cmp     rdi, r12           # Compare the start pointer (rdi) with the midpoint (r12)
+        cmp     rdi, r12           # Compare start (rdi) with the midpoint (r12)
         jb      .L38               # Jump to .L38 if start (rdi) < mid (r12) (go sort first half)
         
         lea     rdi, [r12+4]       # Set rdi to the next element after the midpoint (r12 + 4 bytes)
-        cmp     rdi, rbp           # Compare rdi with the end pointer (rbp)
-        jb      .L39               # Jump to .L39 if mid + 1 (rdi) < end (rbp) (go sort second half)
+        cmp     rdi, rbp           # Compare rdi with the last (rbp)
+        jb      .L39               # Jump to .L39 if mid + 1 (rdi) < last (rbp) (go sort second half)
 
-.L36:                              # Inner fall-through, both sorted, prep merging
+.L36:  #prep_merge                 # Inner fall-through, both sorted, prep merging
         mov     rdx, r12           # Set rdx to the midpoint (r12) for merge()
-        mov     rsi, rbp           # Set rsi to the end pointer (rbp) for merge()
-        mov     rdi, rbx           # Set rdi to the start pointer (rbx) for merge()
+        mov     rsi, rbp           # Set rsi to last (rbp) for merge()
+        mov     rdi, rbx           # Set rdi to start (rbx) for merge()
         pop     rbx                # Restore the old value of rbx (popped from stack)
         pop     rbp                # Restore the old value of rbp (popped from stack)
         pop     r12                # Restore the old value of r12 (popped from stack)
         jmp     merge              # Jump to merge the two sorted halves
 
-.L38:                              # Recursively sort the first half
+.L38:  #sort_left                  # Recursively sort the first half
         mov     rsi, r12           # Set rsi to the midpoint (r12) for the first half
         call    mergesort.part.0   # Recursively sort the first half
         lea     rdi, [r12+4]       # Set rdi to the next element after the midpoint (r12 + 4 bytes)
-        cmp     rdi, rbp           # Compare rdi with the end pointer (rbp)
-        jnb     .L36               # If mid+1 (rdi) >= end (rbp) (no more ele to sort), jump to the merging phase (.L36)
+        cmp     rdi, rbp           # Compare rdi with the last (rbp)
+        jnb     .L36               # If mid+1 (rdi) >= last (rbp) (no more ele to sort), jump to the merging phase (.L36)
 
-.L39:                              # Recursively sort the second half
-        mov     rsi, rbp           # Set rsi to the end pointer (rbp) for the second half
+.L39:  #sort_right                 # Recursively sort the second half
+        mov     rsi, rbp           # Set rsi to the last (rbp) for the second half
         call    mergesort.part.0   # Recursively sort the second half
         jmp     .L36               # After sorting, jump to the merging phase (.L36)
 
 mergesort:                         # Outer fall-through, continue or ret
-        cmp     rdi, rsi           # Compare the start (rdi) and end (rsi) pointers
-        jb      .L42               # If rdi < rsi, jump to start sorting (mergesort.part.0)
+        cmp     rdi, rsi           # Compare the start (rdi) and last (rsi) pointers
+        jb      .L42               # If start < last, jump to start sorting (mergesort.part.0)
         ret                        # Otherwise, the array is already sorted, so return
 .L42:
         jmp     mergesort.part.0
