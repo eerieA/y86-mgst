@@ -27,7 +27,7 @@ main:
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
 #
-mergesort:                          # Recursive V3.01. Pair with merge() V3.04
+mergesort:                          # Recursive V3.02. Pair with merge() V3.04
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
     # Calculate mid point. They are pointers, so andq -8 is a must
@@ -39,13 +39,12 @@ mergesort:                          # Recursive V3.01. Pair with merge() V3.04
     addq   %rsi, %r12               # r12 = first + last
 
     pushq  %rbp
-    rrmovq %rsi, %rbp               # Make a copy of last (rsi) in rbp
+    rrmovq %rsi, %rbp               # Make a copy of last (rsi) in rbp, for in-between sort left and right
     
     divq   %rax, %r12               # r12 = first + last / 2
     andq   %r11, %r12               # Chop last 3 bits, now r12 is mid
 
-    pushq  %rbx
-    rrmovq %rdi, %rbx               # Make a copy of start (rdi) in rbx
+    pushq  %rdi                     # Save start (rdi)
 
     rrmovq %r12, %r8                # r8 = mid
     subq   %rdi, %r8                # r8 = mid - start
@@ -59,8 +58,7 @@ mergesort:                          # Recursive V3.01. Pair with merge() V3.04
     jl     sort_right               # If mid + 1 < last, go sort right half
 
 prep_merge:                         # Inner fall-through, both sorted, prep merging
-    rrmovq %rbx, %rdi               # Copy start (rbx) as the first (rdi) for merge()
-    popq   %rbx                     # Restore registers
+    popq   %rdi                     # Restore registers
     rrmovq %rbp, %rsi               # Copy last (rbp) as the end (rsi) for merge()
     rrmovq %r12, %rdx               # Copy mid (r12) as the mid (rdx) for merge()
 
