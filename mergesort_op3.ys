@@ -1,4 +1,4 @@
-mergesort:                          # Recursive V3.01. Pair with merge() V3.03
+mergesort:                          # Recursive V3.01. Pair with merge() V3.04
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
     # Calculate mid point. They are pointers, so andq -8 is a must
