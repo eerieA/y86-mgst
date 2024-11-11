@@ -1,26 +1,27 @@
-mergesort:                          # Recursive V6.0. Attempt to improve upon V3.02
+mergesort:                          # Recursive V6.01. Attempt to improve upon V3.02
 #    %rdi: pointer to the first element of the range to sort.
 #    %rsi: pointer to the last element of the range to sort.
-    # Calculate mid point. They are pointers, so andq -8 is a must
     pushq  %r12
     
-    rrmovq %rdi, %r12               # r12 = first
-    irmovq $2,   %rax               # constant 2
-    irmovq $-8,  %r11               # constant -8
-    addq   %rsi, %r12               # r12 = first + last
-
     # Check for 2-element case before pushing more registers
-    rrmovq %rsi, %r8                # r8 = last
+    rrmovq %rsi, %r8                # r8 = last, prep for 2 ele case
+
+    # Calculate mid point. They are pointers, so andq -8 is a must
+    rrmovq %rdi, %r12               # (Optz) r12 = first
+    irmovq $2,   %rax               # (Optz) constant 2
+    irmovq $-8,  %r11               # (Optz) constant -8
+    
     subq   %rdi, %r8                # r8 = last - first
+    addq   %rsi, %r12               # (Optz) r12 = first + last
     addq   %r11, %r8                # r8 = (last - first) - 8
     je     two_element_case         # If exactly 2 elements, handle directly
 
     pushq  %rbp
+    divq   %rax, %r12               # (Optz) r12 = first + last / 2
+    
     rrmovq %rsi, %rbp               # Make a copy of last (rsi) in rbp, for in-between sort left and right
     
-    divq   %rax, %r12               # r12 = first + last / 2
     andq   %r11, %r12               # Chop last 3 bits, now r12 is mid
-
     pushq  %rdi                     # Save start (rdi)
 
     rrmovq %r12, %r8                # r8 = mid
@@ -65,18 +66,16 @@ sort_right:                         # mergesort(mid+1, last)
     jmp    prep_merge               # Both sorted, go to prep_merge
 
 two_element_case:
-    pushq %r13
-    mrmovq (%rdi), %r13             # Load first element
+    mrmovq (%rdi), %rax             # Load first element
     mrmovq (%rsi), %r12             # Load second element
-    rrmovq %r13, %r8
+    rrmovq %rax, %r8
     subq   %r12, %r8                # Compare elements
     jle    two_elem_ret             # If first <= second, already sorted
     # Swap elements if needed
     rmmovq %r12, (%rdi)             # Store second element in first position
-    rmmovq %r13, (%rsi)             # Store first element in second position
+    rmmovq %rax, (%rsi)             # Store first element in second position
 
 two_elem_ret:
-    popq   %r13
     popq   %r12                     # Restore r12 pushed before this base case
     ret
 
