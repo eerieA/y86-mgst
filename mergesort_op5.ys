@@ -1,0 +1,75 @@
+mergesort:              # Iterative V5.00. May not be working correctly.
+# %rdi - input array base pointer
+# %rsi - end pointer of the array (rbp equivalent in x86)
+# %rax - temporary variable for calculations
+# %r15d - step size, initially set to 1
+# %rbx - base pointer for current merge block (bx equivalent in x86)
+# %r13, %r12, %r14 - temporary registers for loop counters and array calculations
+    # Function prologue
+    pushq %rbx          # Save callee-saved registers
+    pushq %rbp
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    pushq %r15
+
+    irmovq $0, %rbx     # Clear rbx (used as the base pointer)
+    irmovq $0, %r15     # Step size (1 initially)
+
+    # Calculate n = (rsi - rdi) / 4 + 1
+    rrmovq %rsi, %rax   # rax = rsi
+    subq %rdi, %rax     # rax = rsi - rdi
+    irmovq $4, %r14
+    divq %r14, %rax     # rax = (rsi - rdi) / 4
+    irmovq $1, %r14
+    addq %r14, %rax     # rax = n + 1
+
+    rrmovq %rax, %r12   # Store n in r12
+    irmovq $1, %r15     # r15 = 1 (initial step size)
+
+# Main sorting loop
+loop_begin:
+    rrmovq %r12, %rax   # Check if n <= 1
+    cmpq %r15, %rax     # Compare n with step size
+    jle loop_exit       # If n <= step size, exit loop
+
+    # Set up for merge
+    irmovq $0, %rbx     # Start from the beginning of the array (rbx = 0)
+
+merge_blocks:
+    # Compute rsi and rdx for current block
+    rrmovq %r15, %r13   # r13 = step size
+    addq %r13, %r13     # r13 = step size * 2
+    irmovq $4, %r14     # 4 bytes per element
+    mulq %r14, %r13     # r13 = step size * 2 * 4 (size in bytes)
+
+    addq %rdi, %rbx     # rbx = base + block start
+    rrmovq %rbx, %rdx   # rdx = rbx + step * 4 - 4
+    addq %r13, %rbx     # rbx = next block start
+
+    rrmovq %rsi, %r14   # r14 = end pointer (limit check)
+    cmpq %rbx, %r14     # Compare rbx with end pointer
+    jge no_merge        # If rbx >= rsi, skip merge
+
+    # Merge the blocks (call to merge)
+    call merge
+
+no_merge:
+    # Increment to next block
+    addq %r13, %rbx     # rbx = rbx + step * 2 * 4
+    cmpq %rsi, %rbx     # Check if we reached the end
+    jl merge_blocks     # Repeat for next block
+
+    # Double the step size
+    addq %r15, %r15     # r15 = r15 * 2
+    jmp loop_begin      # Continue loop
+
+loop_exit:
+    # Function epilogue
+    popq %r15           # Restore registers
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %rbp
+    popq %rbx
+    ret                 # Return from mergesort function

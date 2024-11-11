@@ -1,4 +1,4 @@
-mergesort:                          # Recursive V4.02
+mergesort:                          # Recursive V4.02. Superceded by Recursive V3.xx
     rrmovq %rsi, %rax
     subq   %rdi, %rax               # rax = rsi (last) - rdi (first)
     jg     ms_main                  # If last > first, go to main part

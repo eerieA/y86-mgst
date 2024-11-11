@@ -1,0 +1,89 @@
+mergesort:                          # Recursive V6.0. Attempt to improve upon V3.02
+#    %rdi: pointer to the first element of the range to sort.
+#    %rsi: pointer to the last element of the range to sort.
+    # Calculate mid point. They are pointers, so andq -8 is a must
+    pushq  %r12
+    
+    rrmovq %rdi, %r12               # r12 = first
+    irmovq $2,   %rax               # constant 2
+    irmovq $-8,  %r11               # constant -8
+    addq   %rsi, %r12               # r12 = first + last
+
+    # Check for 2-element case before pushing more registers
+    rrmovq %rsi, %r8                # r8 = last
+    subq   %rdi, %r8                # r8 = last - first
+    addq   %r11, %r8                # r8 = (last - first) - 8
+    je     two_element_case         # If exactly 2 elements, handle directly
+
+    pushq  %rbp
+    rrmovq %rsi, %rbp               # Make a copy of last (rsi) in rbp, for in-between sort left and right
+    
+    divq   %rax, %r12               # r12 = first + last / 2
+    andq   %r11, %r12               # Chop last 3 bits, now r12 is mid
+
+    pushq  %rdi                     # Save start (rdi)
+
+    rrmovq %r12, %r8                # r8 = mid
+    subq   %rdi, %r8                # r8 = mid - start
+    jg     sort_left                # If mid > start, go sort left half
+
+    rrmovq %r12, %rdi               # rdi = mid
+    rrmovq %r12, %r8                # r8 = mid
+    subq   %r11, %rdi               # rdi = mid + 1
+    subq   %r11, %r8                # r8 = mid + 1
+    subq   %rbp, %r8                # r8 = mid + 1 - last
+    jl     sort_right               # If mid + 1 < last, go sort right half
+
+prep_merge:                         # Inner fall-through, both sorted, prep merging
+    popq   %rdi                     # Restore registers
+    rrmovq %rbp, %rsi               # Copy last (rbp) as the end (rsi) for merge()
+    rrmovq %r12, %rdx               # Copy mid (r12) as the mid (rdx) for merge()
+
+    # Restore registers
+    popq   %rbp
+    popq   %r12
+
+    # Merge the sorted halves
+    jmp    merge
+
+sort_left:                          # mergesort(first, mid)
+    # first (rdi) is the first (rdi) for the right half, already there
+    rrmovq %r12, %rsi               # mid (r12) is the last (rsi) for the left half
+    call   mergesort
+
+    rrmovq %r12, %r8                # r8 = mid
+    rrmovq %r12, %rdi
+    subq   %r11, %r8                # r8 = mid + 1
+    subq   %r11, %rdi               # rdi = mid + 1
+    subq   %rbp, %r8                # r8 = (mid + 1) - last 
+    jge    prep_merge               # If mid + 1 >= last, go to prep_merge
+
+sort_right:                         # mergesort(mid+1, last)
+    # mid + 1 (rdi) is the first (rdi) for the right half, already done
+    rrmovq %rbp, %rsi               # last (rbp) is the last (rsi) for the right half
+    call   mergesort
+    jmp    prep_merge               # Both sorted, go to prep_merge
+
+two_element_case:
+    pushq %r13
+    mrmovq (%rdi), %r13             # Load first element
+    mrmovq (%rsi), %r12             # Load second element
+    rrmovq %r13, %r8
+    subq   %r12, %r8                # Compare elements
+    jle    two_elem_ret             # If first <= second, already sorted
+    # Swap elements if needed
+    rmmovq %r12, (%rdi)             # Store second element in first position
+    rmmovq %r13, (%rsi)             # Store first element in second position
+
+two_elem_ret:
+    popq   %r13
+    popq   %r12                     # Restore r12 pushed before this base case
+    ret
+
+init_check:                         # Outer fall-through, continue or ret
+    # Check if the range has more than one element
+    rrmovq %rsi, %r8                # r8 = rsi
+    subq   %rdi, %r8                # r8 = rsi (last) - rdi (first)
+    jg    mergesort                 # If last > first, go to main part
+    
+    ret                             # If last <= first, all done
