@@ -14,3 +14,6 @@ https://github.com/user-attachments/assets/9d014763-34e8-4734-a5e7-d1db23193795
 .
 
 Summary of the video: For a general case instance to sort an array with 13 elements, CPU cycles reduction is about 50% for PIPE With Stalling, 50% for PIPE With Forwarding and Branch Prediction. Generally reduction percentage for PIPE With Forwarding and Branch Prediction was expected to be lower than 50%. There are other tests not shown in this video (some are also not in this repo). 
+
+Credits:
+- The human voices in this video were generated using [Kokoro TTS](https://huggingface.co/hexgrad/Kokoro-82M).
